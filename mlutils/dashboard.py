@@ -1,7 +1,6 @@
-from os import kill
 import torch
 from collections import defaultdict
-import subprocess
+from .log import Log
 from visdom import Visdom
 import numpy as np
 import socket
@@ -46,7 +45,11 @@ class Dashobard(object):
             self.start_server()
         else:
             self._start_server_in_app = False
-        self.viz = Visdom(port=self.port)
+        if opt.get('dashboard', False):
+            self.enabled = False
+        else:
+            self.enabled = True
+            self.viz = Visdom(port=self.port)
 
     def train(self):
         self.training = True
@@ -79,6 +82,9 @@ class Dashobard(object):
 
     @regist_win
     def add_image(self, title, image):
+        if self.enabled is False:
+            Log.warn('try to show image, while dashboard is disabled')
+            return
         title = self.get_title(title)
         if image.dim() == 4:
             image = image[0, :, :, :]
@@ -94,6 +100,9 @@ class Dashobard(object):
 
     @regist_win
     def add_line(self, title, X, Y):
+        if self.enabled is False:
+            Log.warn('try to plot line, while dashboard is disabled')
+            return
         return self.vis.line(X=X, Y=Y,
                              opts={'title': title},
                              env=self.env,

@@ -1,5 +1,4 @@
 from tqdm import trange
-import torch
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
@@ -7,6 +6,7 @@ from .stop_watch import StopWatch
 from .log import Log
 from .metrics import *
 from .meter import AverageMeter
+from .dashboard import Dashobard
 
 
 def entry(fn):
@@ -21,6 +21,7 @@ class Trainer(object):
     def __init__(self, opt):
         self.opt = opt
         self.stop_watch = StopWatch()
+        self.dashboard = Dashobard(opt)
         self.epoch = 0
         self.step = 0
         self.metrics = []
@@ -36,6 +37,15 @@ class Trainer(object):
         eval_loss_meter = AverageMeter('eval_loss')
         self.train_meters['loss'] = train_loss_meter
         self.train_meters['eval'] = eval_loss_meter
+
+    def to_gpu(self, obj):
+        if self.opt.get('device', None) is None:
+            return obj
+        else:
+            obj.cuda()
+
+    def to_cpu(self, obj):
+        return obj.cpu()
 
     def __setattr__(self, name, value):
         # collect nn models
@@ -171,24 +181,31 @@ class Trainer(object):
         if self._check_state_dict(state_dict, 'epoch', strict):
             self.epoch = state_dict['epoch']
 
-        if self._check_state_dict(state_dict, 'model', strict):
-            self.model.load_state_dict(state_dict['model'])
+        # load model
+        for key, model in self.nn_models.items():
+            if self._check_state_dict(state_dict, key, strict):
+                model.load_state_dict(state_dict[key])
 
-        if self._check_state_dict(state_dict, 'optimzier', strict):
-            self.optimzier.load_state_dict(state_dict['optimzier'])
+        # load optimizer
+        for key, optimizer in self.nn_optimizers.items():
+            if self._check_state_dict(state_dict, key, strict):
+                optimizer.load_state_dict(state_dict[key])
         
-        if self._check_state_dict(state_dict, 'scheduler', strict):
-            self.scheduler.load_state_dict(state_dict['scheduler'])
+        # load scheduler
+        for key, scheduler in self.lr_schedulers.items():
+            if self._check_state_dict(state_dict, key, strict):
+                scheduler.load_state_dict(state_dict[key])
 
     def state_dict(self):
         state = {}
         if hasattr(self, 'epoch'):
             state['epoch'] = self.epoch
-        if hasattr(self, 'model'):
-            state['model'] = self.model.state_dict()
-        if hasattr(self, 'optimizer'):
-            state['optimizer'] = self.optimizer.state_dict()
-        if hasattr(self, 'scheduler'):
-            state['scheduler'] = self.scheduler.state_dict()
+
+        for key, model in self.nn_models.items():
+            state[key] = model.state_dict()
+        for key, optimizer in self.nn_optimizers.items():
+            state[key] = optimizer.state_dict()
+        for key, scheduler in self.lr_schedulers.items():
+            state[key] = scheduler.state_dict()
 
         return state
