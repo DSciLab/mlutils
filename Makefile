@@ -15,6 +15,7 @@ dep: $(REQUIREMENTS)
 
 commit: .git clean
 	# Not Recommended
+	git pull
 	git add -A
 	-git commit -m 'Update project'
 
