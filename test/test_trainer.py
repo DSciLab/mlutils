@@ -5,18 +5,26 @@ from torch import nn
 from mlutils.trainer import Trainer
 
 
+
 class Mod(nn.Module):
     def __init__(self):
         super().__init__()
         self.a = nn.Linear(3, 3)
 
 
+class Opts:
+    def __init__(self):
+        self.id = 1
+
+    def get(self, key, default=None):
+        return default
+
 def test_models_collect():
     _mods = {}
 
     class TestTrainer(Trainer):
         def __init__(self):
-            super().__init__(None)
+            super().__init__(Opts())
             self.mod1 = Mod()
             self.mod2 = Mod()
             _mods['mod1'] = self.mod1
@@ -34,7 +42,7 @@ def test_optimizers_collect():
 
     class TestTrainer(Trainer):
         def __init__(self):
-            super().__init__(None)
+            super().__init__(Opts())
             self.optim1 = optim.SGD(Mod().parameters(), 0.1)
             self.optim2 = optim.Adam(Mod().parameters(), 0.0001)
             _optims['optim1'] = self.optim1
@@ -54,7 +62,7 @@ def test_schedulers_collect():
 
     class TestTrainer(Trainer):
         def __init__(self):
-            super().__init__(None)
+            super().__init__(Opts())
             self.optim1 = optim.SGD(Mod().parameters(), 0.1)
             self.optim2 = optim.Adam(Mod().parameters(), 0.0001)
             _optims['optim1'] = self.optim1

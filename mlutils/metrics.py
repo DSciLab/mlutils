@@ -1,7 +1,7 @@
 from numpy.lib.arraysetops import isin
 import torch
 import numpy as np
-import sklearn
+from sklearn import metrics
 
 
 __all__ = ['Accuracy', 'F1Score', 'AUROC', 'ECE', 'Kappa']
@@ -37,24 +37,50 @@ class Metric(object):
 
 
 class Accuracy(Metric):
-    def __init__(self):
-        super().__init__()
+    def __call__(self, pred, target):
+        target = self.de_onehot(target)
+        pred = self.de_onehot(pred)
+        assert pred.shape == target.shape
+
+        pred = self.to_numpy(pred)
+        target = self.to_numpy(target)
+        return metrics.accuracy_score(target, pred)
 
     
 class F1Score(Metric):
-    def __init__(self):
-        super().__init__()
+    def __call__(self, pred, target):
+        target = self.de_onehot(target)
+        pred = self.de_onehot(pred)
+        assert pred.shape == target.shape
+
+        pred = self.to_numpy(pred)
+        target = self.to_numpy(target)
+        return metrics.f1_score(target, pred,
+                                average='micro')
 
 
 class AUROC(Metric):
-    def __init__(self):
-        super().__init__()
+    def __call__(self, pred, target):
+        target = self.de_onehot(target)
+        assert target.shape[0] == pred.shape[0]
+
+        pred = self.to_numpy(pred)
+        target = self.to_numpy(target)
+        return metrics.roc_auc_score(target, pred,
+                                     multi_class='ovo')
+
+
+class Kappa(Metric):
+    def __call__(self, pred, target):
+        target = self.de_onehot(target)
+        pred = self.de_onehot(pred)
+        assert pred.shape == target.shape
+
+        pred = self.to_numpy(pred)
+        target = self.to_numpy(target)
+        return metrics.cohen_kappa_score(target, pred)
 
 
 class ECE(Metric):
-    def __init__(self):
-        super().__init__()
-
-class Kappa(Metric):
     def __init__(self):
         super().__init__()

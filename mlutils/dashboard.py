@@ -1,3 +1,4 @@
+import time
 import torch
 from collections import defaultdict
 from .log import Log
@@ -31,25 +32,50 @@ def regist_win(func):
 
 
 class Dashobard(object):
+    MAX_TRY_CONNECT_SERVER = 10
+
     def __init__(self, opt):
         self.env = opt.id
-        self.server_port = opt.get('visdom_port', get_free_port())
+        self.port = opt.get('visdom_port', get_free_port())
         self.opt = opt
         self.hostname = get_hostname()
 
         self.training = True
         self.win_dict = defaultdict(lambda: None)
         self.server_pid = None
+        self.epoch = 0
+
         if opt.get('visdom_server', False):
             self._start_server_in_app = True
             self.start_server()
         else:
             self._start_server_in_app = False
-        if opt.get('dashboard', False):
+
+        if not opt.get('dashboard', False):
             self.enabled = False
+            self.viz = None
         else:
             self.enabled = True
-            self.viz = Visdom(port=self.port)
+            if self._start_server_in_app:
+                try_cnt = 0
+                while True:
+                    try_cnt += 1
+                    try:
+                        self.viz = Visdom(port=self.port,
+                                          raise_exceptions=True)
+                    except ConnectionError as e:
+                        if try_cnt > self.MAX_TRY_CONNECT_SERVER:
+                            raise e
+                        Log.info(f'[{try_cnt}/{self.MAX_TRY_CONNECT_SERVER}] '
+                                 'Connect to visdom server error, '
+                                 'auto try 3 sec. leter.')
+                        time.sleep(3)
+                        continue
+            else:
+                self.viz = Visdom(port=self.port, raise_exceptions=True)
+
+    def step(self):
+        self.epoch += 1
 
     def train(self):
         self.training = True
@@ -83,7 +109,7 @@ class Dashobard(object):
     @regist_win
     def add_image(self, title, image):
         if self.enabled is False:
-            Log.warn('try to show image, while dashboard is disabled')
+            Log.warn('Try to show image, while dashboard is disabled')
             return
         title = self.get_title(title)
         if image.dim() == 4:
@@ -101,7 +127,7 @@ class Dashobard(object):
     @regist_win
     def add_line(self, title, X, Y):
         if self.enabled is False:
-            Log.warn('try to plot line, while dashboard is disabled')
+            Log.warn('Try to plot line, while dashboard is disabled')
             return
         return self.vis.line(X=X, Y=Y,
                              opts={'title': title},
@@ -109,12 +135,19 @@ class Dashobard(object):
                              win=self.win_dict[title],
                              update='append')
 
-    def add_trace(self, title, epoch, data):
+    def add_trace(self, title, data, epoch=None):
+        epoch = epoch or self.epoch
         if isinstance(data, torch.Tensor) or \
             isinstance(data, np.ndarray):
+            if isinstance(data, torch.Tensor):
+                data = data.detach().cpu()
             data = data.mean()
+
         self.add_line(title, epoch, data)
 
-    def add_trace_dict(self, epoch, data_dict):
+    def add_trace_dict(self, data_dict, epoch=None):
         for title, data in data_dict.items():
-            self.add_trace(title, epoch, data)
+            self.add_trace(title, data, epoch)
+
+    def add_meter(self, title, meter, epoch=None):
+        self.add_trace(title, meter.latest, epoch)

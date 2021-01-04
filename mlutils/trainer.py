@@ -32,11 +32,14 @@ class Trainer(object):
         self.lr_schedulers = {}
         self.training = True
     
-    def init(self):
         train_loss_meter = AverageMeter('train_loss')
         eval_loss_meter = AverageMeter('eval_loss')
         self.train_meters['loss'] = train_loss_meter
-        self.train_meters['eval'] = eval_loss_meter
+        self.eval_meters['loss'] = eval_loss_meter
+
+
+    def init(self):
+        pass
 
     def to_gpu(self, obj):
         if self.opt.get('device', None) is None:
@@ -99,6 +102,7 @@ class Trainer(object):
         for _ in range(initial_epoch, self.opt.epochs):
             self.epoch += 1
             self.on_epoch_begin()
+            self.dashboard.step()
             self.train_epoch(train_loader)
             if eval_loader is not None:
                 self.eval_epoch(eval_loader)
@@ -111,6 +115,7 @@ class Trainer(object):
 
     def train_epoch(self, data_loader):
         self.training = True
+        self.dashboard.train()
         self.model.train()
         data_len = len(data_loader)
         with trange(data_len) as t:
@@ -126,9 +131,14 @@ class Trainer(object):
                     f'[loss: [{loss:.3f}]]'
                 )
 
+        for meter in self.train_meters.values():
+            meter.step()
+            self.dashboard.add_meter(meter)
+
     def eval_epoch(self, data_loader):
         self.training = False
         self.model.eval()
+        self.dashboard.eval()
         data_len = len(data_loader)
         with trange(data_len) as t:
             for item in data_loader:
@@ -140,6 +150,9 @@ class Trainer(object):
                     f'Validation {self.step} | '
                     f'[{self.epoch}/{self.opt.epochs}]'
                 )
+        for meter in self.eval_meters.values():
+            meter.step()
+            self.dashboard.add_meter(meter)
 
     def train_step(self, item):
         # return loss, preds, labels, ....
