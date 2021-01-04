@@ -11,6 +11,7 @@ class AverageMeter(object):
         self.min = np.Inf
         self.avg = None
         self.latest = None
+        self.string = None
 
     def reset(self):
         self.data_sum = None
@@ -28,15 +29,16 @@ class AverageMeter(object):
                 self.min = self.avg
         self.latest = self.avg
 
-        self.data_sum = None
+    def zero(self):
         self.cnt = 0
-        self.avg = None
+        self.data_sum = 0
+        self.avg = 0
 
     def append(self, data, cnt=1):
         self.cnt += cnt
         data = data.mean()
         if isinstance(data, torch.Tensor):
-            data = data.numpy()
+            data = data.cpu().numpy()
 
         if self.data_sum is None:
             self.data_sum = data
@@ -52,5 +54,5 @@ class AverageMeter(object):
             string += f'avg: {self.avg:.4f} | '
             string += f'max: {self.max:.4f} | '
             string += f'min: {self.min:.4f} | '
-            string += f'cnt: {self.cnt:.4f} |'
+            string += f'cnt: {self.cnt} |'
         return string

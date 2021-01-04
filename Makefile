@@ -24,7 +24,7 @@ push: commit
 	git push
 
 
-install:
+install: dep
 	$(PYTHON) setup.py install
 
 

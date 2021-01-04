@@ -18,6 +18,7 @@ class Saver(object):
         self.best_path = os.path.join(saver_dir, self.BEST_STATE)
         self.meters_path = os.path.join(saver_dir, self.METER_LOG)
         self.cfg_path = os.path.join(saver_dir, self.CFG_FILE)
+        Log.info('initiated saver.')
 
     def save_state_dict(self, state_dict, best=False):
         self._save_latest_state_dict(state_dict)

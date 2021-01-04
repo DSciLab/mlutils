@@ -17,7 +17,7 @@ class StopWatch(object):
     def lap(self):
         curr = time.perf_counter()
         duration = curr - self._start
-        self.history.append(duration)
+        self._history.append(duration)
         return duration
 
     def perfect_lap(self):
@@ -25,9 +25,9 @@ class StopWatch(object):
         H = 60*60
         M = 60
         
-        h = duration / H
+        h = int(duration / H)
         rm = duration % H
-        m = rm / M
+        m = int(rm / M)
         s = rm % M
 
-        return f'{h}:{m}:{s}'
+        return f'{h}:{m}:{s:.2f}'

@@ -25,6 +25,7 @@ def regist_win(func):
     def __fn(*args, **kwargs):
         obj = args[0]
         title = args[1]
+        title = obj.get_title(title)
         win = func(*args, **kwargs)
         obj._regist_win(title, win)
         return win
@@ -43,18 +44,25 @@ class Dashobard(object):
         self.training = True
         self.win_dict = defaultdict(lambda: None)
         self.server_pid = None
-        self.epoch = 0
+        self.epoch = np.array([0])
 
-        if opt.get('visdom_server', False):
+        if opt.get('dashboard_server', False):
             self._start_server_in_app = True
             self.start_server()
         else:
+            if opt.get('dashboard', False):
+                # if dashboard is enabled.
+                if opt.get('visdom_port', None) is None:
+                    # dashboard port not set.
+                    Log.error(f'visdom server port not set.')
             self._start_server_in_app = False
 
         if not opt.get('dashboard', False):
+            Log.info('Dashboard disabled.')
             self.enabled = False
             self.viz = None
         else:
+            Log.info('Dashboard enabled.')
             self.enabled = True
             if self._start_server_in_app:
                 try_cnt = 0
@@ -68,11 +76,15 @@ class Dashobard(object):
                             raise e
                         Log.info(f'[{try_cnt}/{self.MAX_TRY_CONNECT_SERVER}] '
                                  'Connect to visdom server error, '
-                                 'auto try 3 sec. leter.')
-                        time.sleep(3)
+                                 'auto try 5 sec. leter.')
+                        time.sleep(5)
                         continue
+                    else:
+                        break
             else:
                 self.viz = Visdom(port=self.port, raise_exceptions=True)
+        Log.info('initiated dashboard.')
+        self.address = f'http://{self.hostname}:{self.port}'
 
     def step(self):
         self.epoch += 1
@@ -84,11 +96,15 @@ class Dashobard(object):
         self.training = False
 
     def start_server(self):
+        Log.info('starting dashboard server...')
         cmd = f'python -m visdom.server -port {self.port} '
-        cmd += f'-hostname 0.0.0.0'
-        code, pid, stdout, stderr = Shell.run()
+        cmd += f'--hostname 0.0.0.0'
+        code, pid, stdout, stderr = Shell.run(cmd)
+        Log.debug(f'dashboard server code: {code}')
+        Log.debug(f'dashboard server stdout: {stdout}')
+        Log.debug(f'dashboard server stderr: {stderr}')
         self.server_pid = pid
-        Log.info(f'http://{self.hostname}:{self.port}')
+        Log.info(f'Dashboard: http://{self.hostname}:{self.port}')
 
     def kill_server(self):
         if self._start_server_in_app:
@@ -100,7 +116,7 @@ class Dashobard(object):
         else:
             prefix = 'eval'
 
-        return f'{prefix}/{title}'
+        return f'{prefix}_{title}'
 
     def _regist_win(self, title, win):
         if self.win_dict[title] is None:
@@ -115,7 +131,7 @@ class Dashobard(object):
         if image.dim() == 4:
             image = image[0, :, :, :]
 
-        return self.vis.image(image,
+        return self.viz.image(image,
                               opts={'title': title},
                               env=self.env,
                               win=self.win_dict[title])
@@ -129,25 +145,40 @@ class Dashobard(object):
         if self.enabled is False:
             Log.warn('Try to plot line, while dashboard is disabled')
             return
-        return self.vis.line(X=X, Y=Y,
-                             opts={'title': title},
-                             env=self.env,
-                             win=self.win_dict[title],
-                             update='append')
 
-    def add_trace(self, title, data, epoch=None):
-        epoch = epoch or self.epoch
-        if isinstance(data, torch.Tensor) or \
-            isinstance(data, np.ndarray):
-            if isinstance(data, torch.Tensor):
-                data = data.detach().cpu()
-            data = data.mean()
+        title = self.get_title(title)
+        if self.win_dict[title] is None:
+            return self.viz.line(X=X, Y=Y,
+                                opts={'title': title},
+                                env=self.env,
+                                win=self.win_dict[title])
+        else:
+            return self.viz.line(X=X, Y=Y,
+                                opts={'title': title},
+                                env=self.env,
+                                win=self.win_dict[title],
+                                update='append')
 
-        self.add_line(title, epoch, data)
+    def add_trace(self, title, data):
+        if isinstance(data, torch.Tensor):
+            data = data.detach().cpu()
 
-    def add_trace_dict(self, data_dict, epoch=None):
+        self.add_line(title, self.epoch, data)
+
+    def add_trace_dict(self, data_dict):
         for title, data in data_dict.items():
-            self.add_trace(title, data, epoch)
+            self.add_trace(title, data)
 
-    def add_meter(self, title, meter, epoch=None):
-        self.add_trace(title, meter.latest, epoch)
+    def add_meter(self, meter):
+        value = meter.latest
+
+        if isinstance(value, (int, float, np.float, np.int)):
+            value = np.array([value])
+
+        if isinstance(value, torch.Tensor):
+            if value.dim() == 0:
+                value = torch.unsqueeze(value, 0)
+        elif not isinstance(value, np.ndarray):
+            Log.error(f'Unrecognized meter value {value}/{type(value)}.')
+
+        self.add_trace(meter.name, value)

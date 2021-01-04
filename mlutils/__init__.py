@@ -20,6 +20,8 @@ def init(opt):
 
         device = ','.join([str(d) for d in device])
         os.environ['CUDA_VISIBLE_DEVICES'] = device
+    else:
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
     if hasattr(opt, 'seed'):
         random.seed(opt.seed)

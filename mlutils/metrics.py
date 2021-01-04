@@ -15,7 +15,7 @@ class Metric(object):
     @staticmethod
     def to_numpy(data):
         if isinstance(data, torch.Tensor):
-            return data.numpy()
+            return data.cpu().numpy()
         else:
             return data
 

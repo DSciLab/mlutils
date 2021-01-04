@@ -1,10 +1,11 @@
+import inspect
 from tqdm import trange
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
 from .stop_watch import StopWatch
 from .log import Log
-from .metrics import *
+from .metrics import Metric
 from .meter import AverageMeter
 from .dashboard import Dashobard
 
@@ -45,7 +46,7 @@ class Trainer(object):
         if self.opt.get('device', None) is None:
             return obj
         else:
-            obj.cuda()
+            return obj.cuda()
 
     def to_cpu(self, obj):
         return obj.cpu()
@@ -73,14 +74,20 @@ class Trainer(object):
 
     def set_metrics(self, *metric_classes):
         for metric_cls in metric_classes:
-            metric = metric_cls(self.opt)
-            train_meter = AverageMeter(metric_cls.__name__)
-            eval_meter = AverageMeter(metric_cls.__name__)
+            if inspect.isclass(metric_cls) and issubclass(metric_cls, Metric):
+                metric = metric_cls(self.opt)
+            elif isinstance(metric_cls, Metric):
+                metric = metric_cls
+            else:
+                raise RuntimeError(f'Unrecognized metric')
+            
+            train_meter = AverageMeter(metric.__class__.__name__)
+            eval_meter = AverageMeter(metric.__class__.__name__)
             self.metrics.append(metric)
             self.train_meters[train_meter.name] = train_meter
             self.eval_meters[eval_meter.name] = eval_meter
 
-    def metrics(self, preds, labels):
+    def metric(self, preds, labels):
         if self.training:
             meters = self.train_meters
         else:
@@ -90,10 +97,20 @@ class Trainer(object):
             meter = meters[metric.__class__.__name__]
             meter.append(metric(preds, labels))
 
-    def report_epoch(self):
-        Log.info(f'Duration: {self.stop_watch.prefect_lap()}')
-        for meter in self.eval_meters:
+    def _report_epoch(self):
+        try:
+            self.report_epoch()
+        except NotImplementedError:
+            pass
+
+        Log.info(f'Duration: {self.stop_watch.perfect_lap()}')
+        if self.dashboard.enabled:
+            Log.info(f'Dashboard: {self.dashboard.address}')
+        for meter in self.eval_meters.values():
             Log.info(meter)
+
+    def report_epoch(self):
+        raise NotImplementedError
 
     @entry
     def train(self, train_loader, eval_loader=None):
@@ -106,7 +123,7 @@ class Trainer(object):
             self.train_epoch(train_loader)
             if eval_loader is not None:
                 self.eval_epoch(eval_loader)
-            self.report_epoch()
+            self._report_epoch()
             self.on_epoch_end()
 
     @entry
@@ -117,19 +134,24 @@ class Trainer(object):
         self.training = True
         self.dashboard.train()
         self.model.train()
+
+        for meter in self.train_meters.values():
+            meter.zero()
+
         data_len = len(data_loader)
         with trange(data_len) as t:
             for item in data_loader:
                 self.step += 1
                 rets = self.train_step(item)
                 loss, preds, labels = rets[:3]
-                self.metrics(preds, labels)
+                self.metric(preds, labels)
                 self.train_meters['loss'].append(loss)
                 t.set_description(
                     f'Training '
                     f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
-                    f'[loss: [{loss:.3f}]]'
+                    f'[loss: {loss:.3f}]'
                 )
+                t.update()
 
         for meter in self.train_meters.values():
             meter.step()
@@ -139,17 +161,23 @@ class Trainer(object):
         self.training = False
         self.model.eval()
         self.dashboard.eval()
+
+        for meter in self.eval_meters.values():
+            meter.zero()
+
         data_len = len(data_loader)
         with trange(data_len) as t:
             for item in data_loader:
                 rets = self.train_step(item)
                 loss, preds, labels = rets[:3]
-                self.metrics(preds, labels)
+                self.metric(preds, labels)
                 self.eval_meters['loss'].append(loss)
                 t.set_description(
                     f'Validation {self.step} | '
                     f'[{self.epoch}/{self.opt.epochs}]'
                 )
+                t.update()
+
         for meter in self.eval_meters.values():
             meter.step()
             self.dashboard.add_meter(meter)
