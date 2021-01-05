@@ -4,6 +4,7 @@ class Log(object):
     INFO = 1
     WARN = 2
     ERROR = 3
+    FATAL = 4
 
     @classmethod
     def set_level(cls, level):
@@ -16,26 +17,33 @@ class Log(object):
     @classmethod
     def debug(cls, *msg):
         header = '[Debug]: '
-        if cls.LEVEL_LIMIT >= cls.DEBUG:
+        if cls.DEBUG >= cls.LEVEL_LIMIT:
             cls._log(header, *msg)
 
     @classmethod
     def info(cls, *msg):
         header = '[Info]: '
-        if cls.LEVEL_LIMIT >= cls.INFO:
+        if cls.INFO >= cls.LEVEL_LIMIT:
             cls._log(header, *msg)
     
     @classmethod
     def warn(cls, *msg):
         header = '[Warn]: '
-        if cls.LEVEL_LIMIT >= cls.WARN:
+        if cls.WARN >= cls.LEVEL_LIMIT:
             cls._log(header, *msg)
 
     @classmethod
     def error(cls, *msg):
         header = '[Error]: '
-        if cls.LEVEL_LIMIT >= cls.ERROR:
+        if cls.ERROR >= cls.LEVEL_LIMIT:
             cls._log(header, *msg)
+
+    @classmethod
+    def fatal(cls, *msg):
+        header = '[Fatal]: '
+        if cls.FATAL >= cls.LEVEL_LIMIT:
+            cls._log(header, *msg)
+        exit(1)
 
     @classmethod
     def _log(self, header, *msg):
