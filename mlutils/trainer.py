@@ -1,3 +1,4 @@
+import numpy as np
 import inspect
 from tqdm import trange
 from torch.optim import Optimizer
@@ -5,15 +6,14 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
 from .stop_watch import StopWatch
 from .log import Log
-from .metrics import Metric
+from .metrics import ECE, Metric
 from .meter import AverageMeter
 from .dashboard import Dashobard
+from .saver import Saver
 
 
 def entry(fn):
     def __fn(*args, **kwargs):
-        obj = args[0]
-        obj.init()
         fn(*args, **kwargs)
     return __fn
 
@@ -25,6 +25,7 @@ class Trainer(object):
         self.dashboard = Dashobard(opt)
         self.epoch = 0
         self.step = 0
+        self.saver = Saver(opt)
         self.metrics = []
         self.train_meters = {}
         self.eval_meters = {}
@@ -32,15 +33,15 @@ class Trainer(object):
         self.nn_optimizers = {}
         self.lr_schedulers = {}
         self.training = True
+        self.best = False
+        self.latest_loss = np.Inf
     
         train_loss_meter = AverageMeter('train_loss')
         eval_loss_meter = AverageMeter('eval_loss')
         self.train_meters['loss'] = train_loss_meter
         self.eval_meters['loss'] = eval_loss_meter
 
-
-    def init(self):
-        pass
+        self.saver.save_cfg(opt)
 
     def to_gpu(self, obj):
         if self.opt.get('device', None) is None:
@@ -103,6 +104,7 @@ class Trainer(object):
         except NotImplementedError:
             pass
 
+        Log.info(f'ID: {self.opt.id}')
         Log.info(f'Duration: {self.stop_watch.perfect_lap()}')
         if self.dashboard.enabled:
             Log.info(f'Dashboard: {self.dashboard.address}')
@@ -114,17 +116,33 @@ class Trainer(object):
 
     @entry
     def train(self, train_loader, eval_loader=None):
+        try:
+            self.on_training_begin()
+        except NotImplementedError:
+            pass
+
         initial_epoch = self.epoch
         self.stop_watch.start()
         for _ in range(initial_epoch, self.opt.epochs):
             self.epoch += 1
-            self.on_epoch_begin()
+            try:
+                self.on_epoch_begin()
+            except NotImplementedError:
+                pass
             self.dashboard.step()
             self.train_epoch(train_loader)
             if eval_loader is not None:
                 self.eval_epoch(eval_loader)
+            self.save_stat_dict()
             self._report_epoch()
-            self.on_epoch_end()
+            try:
+                self.on_epoch_end()
+            except NotImplementedError:
+                pass
+        try:
+            self.on_training_end()
+        except NotImplementedError:
+            pass
 
     @entry
     def eval(self, eval_loader):
@@ -133,7 +151,8 @@ class Trainer(object):
     def train_epoch(self, data_loader):
         self.training = True
         self.dashboard.train()
-        self.model.train()
+        for model in self.nn_models.values():
+            model.train()
 
         for meter in self.train_meters.values():
             meter.zero()
@@ -159,16 +178,16 @@ class Trainer(object):
 
     def eval_epoch(self, data_loader):
         self.training = False
-        self.model.eval()
         self.dashboard.eval()
-
+        for model in self.nn_models.values():
+            model.eval()
         for meter in self.eval_meters.values():
             meter.zero()
 
         data_len = len(data_loader)
         with trange(data_len) as t:
             for item in data_loader:
-                rets = self.train_step(item)
+                rets = self.eval_step(item)
                 loss, preds, labels = rets[:3]
                 self.metric(preds, labels)
                 self.eval_meters['loss'].append(loss)
@@ -181,6 +200,18 @@ class Trainer(object):
         for meter in self.eval_meters.values():
             meter.step()
             self.dashboard.add_meter(meter)
+
+        loss_meter = self.eval_meters['loss']
+        latest_loss = loss_meter.avg
+        if latest_loss < self.latest_loss:
+            self.best = True
+        else:
+            self.best = False
+        self.latest_loss = latest_loss
+
+    def save_stat_dict(self):
+        state_dict = self.state_dict()
+        self.saver.save_state_dict(state_dict, best=self.best)
 
     def train_step(self, item):
         # return loss, preds, labels, ....
@@ -250,3 +281,8 @@ class Trainer(object):
             state[key] = scheduler.state_dict()
 
         return state
+
+    def load_state(self):
+        model = self.opt.model
+        state_dict = self.saver.load_state_dict(model)
+        self.load_state_dict(state_dict)

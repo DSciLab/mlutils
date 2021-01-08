@@ -1,5 +1,6 @@
 import subprocess
 import shlex
+from .log import Log
 
 
 class Shell(object):
@@ -12,7 +13,7 @@ class Shell(object):
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE)
         except Exception as e:
-            print(f'Cann\'t run [{cmd}]')
+            Log.info(f'Cann\'t run [{cmd}]')
             raise e
 
         pid = proc.pid
@@ -33,7 +34,7 @@ class Shell(object):
     @classmethod
     def kill_all(cls):
         for proc in cls.PROCESSES.values():
-            print(f'Kill subprocess {proc.pid}')
+            Log.info(f'Kill subprocess {proc.pid}')
             proc.kill()
         cls.PROCESSES = {}
 
@@ -44,7 +45,7 @@ class Shell(object):
             cls.PROCESSES.pop(pid)
             proc.kill()
         else:
-            print(f'No such pid [{pid}].')
+            Log.warn(f'No such pid [{pid}].')
 
     @classmethod
     def kill9(cls, pid):
@@ -53,7 +54,7 @@ class Shell(object):
             cmd = f'kill -9 {pid}'
             _, pid, _, _ = cls.run(cmd)
         else:
-            print(f'No such pid [{pid}].')
+            Log.warn(f'No such pid [{pid}].')
 
     @classmethod
     def wait(cls, pid):
@@ -62,7 +63,7 @@ class Shell(object):
             cls.PROCESSES.pop(pid)
             proc.wait()
         else:
-            print(f'No such pid [{pid}].')
+            Log.warn(f'No such pid [{pid}].')
 
     @classmethod
     def wait_all(cls):
