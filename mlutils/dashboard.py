@@ -1,3 +1,4 @@
+from os import sep
 import time
 import torch
 from collections import defaultdict
@@ -37,7 +38,7 @@ class Dashobard(object):
 
     def __init__(self, opt):
         self.env = opt.id
-        self.port = opt.get('visdom_port', get_free_port())
+        self.port = opt.get('dashboard_port', get_free_port())
         self.opt = opt
         self.hostname = get_hostname()
 
@@ -52,7 +53,7 @@ class Dashobard(object):
         else:
             if opt.get('dashboard', False):
                 # if dashboard is enabled.
-                if opt.get('visdom_port', None) is None:
+                if opt.get('dashboard_port', None) is None:
                     # dashboard port not set.
                     Log.error(f'visdom server port not set.')
             self._start_server_in_app = False
@@ -141,10 +142,19 @@ class Dashobard(object):
             self.add_image(title, image)
 
     @regist_win
-    def add_line(self, title, X, Y):
+    def add_line(self, title, X, Y, step=None):
         if self.enabled is False:
             Log.warn('Try to plot line, while dashboard is disabled')
             return
+
+        if isinstance(Y, (int, float, np.float, np.int)):
+            Y = np.array([Y])
+
+        if isinstance(Y, torch.Tensor):
+            if Y.dim() == 0:
+                Y = torch.unsqueeze(Y, 0)
+        elif not isinstance(Y, np.ndarray):
+            Log.error(f'Unrecognized meter value {Y}/{type(Y)}.')
 
         title = self.get_title(title)
         if self.win_dict[title] is None:
@@ -159,26 +169,19 @@ class Dashobard(object):
                                 win=self.win_dict[title],
                                 update='append')
 
-    def add_trace(self, title, data):
+    def add_trace(self, title, data, step=None):
         if isinstance(data, torch.Tensor):
             data = data.detach().cpu()
+        if step is None:
+            step = self.epoch
+        else:
+            step = np.array([step])
+        self.add_line(title, step, data)
 
-        self.add_line(title, self.epoch, data)
-
-    def add_trace_dict(self, data_dict):
+    def add_trace_dict(self, data_dict, step=None):
         for title, data in data_dict.items():
-            self.add_trace(title, data)
+            self.add_trace(title, data, step)
 
-    def add_meter(self, meter):
+    def add_meter(self, meter, step=None):
         value = meter.latest
-
-        if isinstance(value, (int, float, np.float, np.int)):
-            value = np.array([value])
-
-        if isinstance(value, torch.Tensor):
-            if value.dim() == 0:
-                value = torch.unsqueeze(value, 0)
-        elif not isinstance(value, np.ndarray):
-            Log.error(f'Unrecognized meter value {value}/{type(value)}.')
-
-        self.add_trace(meter.name, value)
+        self.add_trace(meter.name, value, step)

@@ -12,7 +12,7 @@ class Saver(object):
     CFG_FILE = 'cfg.yaml'
 
     def __init__(self, opt):
-        self.test = opt.test
+        self.test = opt.get('test', False)
         saver_root = opt.get('saver_root', self.DEFAULT_ROOT)
         saver_dir = os.path.join(saver_root, opt.id)
         self.latest_path = os.path.join(saver_dir, self.LATEST_STATE)

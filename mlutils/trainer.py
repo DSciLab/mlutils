@@ -104,6 +104,7 @@ class Trainer(object):
         except NotImplementedError:
             pass
 
+        Log.info(f'ID: {self.opt.id}')
         Log.info(f'Duration: {self.stop_watch.perfect_lap()}')
         if self.dashboard.enabled:
             Log.info(f'Dashboard: {self.dashboard.address}')
@@ -150,7 +151,7 @@ class Trainer(object):
     def train_epoch(self, data_loader):
         self.training = True
         self.dashboard.train()
-        for model in self.nn_models:
+        for model in self.nn_models.values():
             model.train()
 
         for meter in self.train_meters.values():
@@ -178,16 +179,15 @@ class Trainer(object):
     def eval_epoch(self, data_loader):
         self.training = False
         self.dashboard.eval()
-        for model in self.nn_models:
+        for model in self.nn_models.values():
             model.eval()
-
         for meter in self.eval_meters.values():
             meter.zero()
 
         data_len = len(data_loader)
         with trange(data_len) as t:
             for item in data_loader:
-                rets = self.train_step(item)
+                rets = self.eval_step(item)
                 loss, preds, labels = rets[:3]
                 self.metric(preds, labels)
                 self.eval_meters['loss'].append(loss)
