@@ -3,3 +3,6 @@ tqdm
 scikit-learn
 visdom
 torch
+imageio
+libtiff
+opencv-python
