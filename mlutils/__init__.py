@@ -9,6 +9,7 @@ from .log import Log
 from .dashboard import Dashobard
 from .meter import AverageMeter
 from .saver import Saver
+from .imread import imread
 
 
 def init(opt):

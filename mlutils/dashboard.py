@@ -1,4 +1,3 @@
-from os import sep
 import time
 import torch
 from collections import defaultdict
@@ -37,6 +36,7 @@ class Dashobard(object):
     MAX_TRY_CONNECT_SERVER = 10
 
     def __init__(self, opt):
+        self.image_chan = opt.image_chan
         self.env = opt.id
         self.port = opt.get('dashboard_port', get_free_port())
         self.opt = opt
@@ -129,8 +129,21 @@ class Dashobard(object):
             Log.warn('Try to show image, while dashboard is disabled')
             return
         title = self.get_title(title)
-        if image.dim() == 4:
-            image = image[0, :, :, :]
+        if self.image_chan == 3:
+            if image.dim() == 4:
+                image = image[0, :, :, :]
+        else:
+            # image chan == 1
+            if image.dim() == 4:
+                image = image[0, :, :, :]
+            else:
+                # dim == 3
+                image = image[0, :, :]
+                if isinstance(image, torch.Tensor):
+                    image = torch.unsqueeze(image, 0)
+                else:
+                    # ndarray
+                    image = np.expand_dims(image, 0)
 
         return self.viz.image(image,
                               opts={'title': title},
