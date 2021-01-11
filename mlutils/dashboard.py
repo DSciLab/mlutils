@@ -84,8 +84,9 @@ class Dashobard(object):
                         break
             else:
                 self.viz = Visdom(port=self.port, raise_exceptions=True)
-        Log.info('initiated dashboard.')
-        self.address = f'http://{self.hostname}:{self.port}'
+            self.address = f'http://{self.hostname}:{self.port}'
+            Log.info('initiated dashboard.')
+            Log.info(f'Address: {self.address}')
 
     def step(self):
         self.epoch += 1
