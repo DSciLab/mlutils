@@ -45,6 +45,7 @@ class Trainer(object):
 
         Log.info('Initiated Trainer')
         Log.info(f'ID: {opt.id}')
+        Log.debug(opt.perfect())
 
     def to_gpu(self, obj):
         if self.opt.get('device', None) is None:
