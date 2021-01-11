@@ -43,6 +43,9 @@ class Trainer(object):
 
         self.saver.save_cfg(opt)
 
+        Log.info('Initiated Trainer')
+        Log.info(f'ID: {opt.id}')
+
     def to_gpu(self, obj):
         if self.opt.get('device', None) is None:
             return obj
