@@ -1,4 +1,5 @@
 import time
+from numpy.lib.type_check import imag
 import torch
 from collections import defaultdict
 from .log import Log
@@ -34,8 +35,11 @@ def regist_win(func):
 
 class Dashobard(object):
     MAX_TRY_CONNECT_SERVER = 10
+    IMG_FREQ = 19
 
     def __init__(self, opt):
+        self.img_freq = opt.get('img_freq', self.IMG_FREQ)
+        self.image_step = 0
         self.image_chan = opt.image_chan
         self.env = opt.id
         self.port = opt.get('dashboard_port', get_free_port())
@@ -126,6 +130,10 @@ class Dashobard(object):
 
     @regist_win
     def add_image(self, title, image):
+        self.image_step += 1
+        if self.image_step % self.img_freq != 0:
+            return
+
         if self.enabled is False:
             Log.warn('Try to show image, while dashboard is disabled')
             return

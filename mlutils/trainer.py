@@ -19,6 +19,7 @@ def entry(fn):
 
 
 class Trainer(object):
+    TRACE_FREQ = 41
     def __init__(self, opt):
         self.opt = opt
         self.stop_watch = StopWatch()
