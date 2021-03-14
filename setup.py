@@ -6,5 +6,5 @@ setup(name='mlutils',
       description='Machine learn utils',
       author='tor4z',
       author_email='vwenjie@hotmail.com',
-      packages=['mlutils'],
+      packages=['mlutils', 'mlutils/thirdparty'],
      )

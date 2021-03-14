@@ -1,7 +1,7 @@
-from numpy.lib.arraysetops import isin
 import torch
 import numpy as np
 from sklearn import metrics
+from .thirdparty import sklearn_metrics
 
 
 __all__ = ['Accuracy', 'F1Score', 'AUROC', 'ECE', 'Kappa']
@@ -15,7 +15,7 @@ class Metric(object):
     @staticmethod
     def to_numpy(data):
         if isinstance(data, torch.Tensor):
-            return data.cpu().numpy()
+            return data.detach().cpu().numpy()
         else:
             return data
 
@@ -78,7 +78,8 @@ class Kappa(Metric):
 
         pred = self.to_numpy(pred)
         target = self.to_numpy(target)
-        return metrics.cohen_kappa_score(target, pred)
+        return sklearn_metrics.cohen_kappa_score(
+            target, pred, weights='quadratic')
 
 
 class ECE(Metric):

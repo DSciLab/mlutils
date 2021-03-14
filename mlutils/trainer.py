@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import inspect
 from tqdm import trange
@@ -6,10 +7,11 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
 from .stop_watch import StopWatch
 from .log import Log
-from .metrics import ECE, Metric
+from .metrics import Metric
 from .meter import AverageMeter
 from .dashboard import Dashobard
 from .saver import Saver
+from .container import DataContainer
 
 
 def entry(fn):
@@ -36,6 +38,7 @@ class Trainer(object):
         self.training = True
         self.best = False
         self.latest_loss = np.Inf
+        self.eval_container = DataContainer('eval_data', opt)
     
         train_loss_meter = AverageMeter('train_loss')
         eval_loss_meter = AverageMeter('eval_loss')
@@ -48,10 +51,15 @@ class Trainer(object):
         Log.info(f'ID: {opt.id}')
         Log.debug(opt.perfect())
 
-    def to_gpu(self, obj):
+    def to_gpu(self, obj, parallel=False):
         if self.opt.get('device', None) is None:
             return obj
         else:
+            if parallel and len(self.opt.device) > 1:
+                obj = obj.cuda()
+                obj = torch.nn.DataParallel(
+                    obj, device_ids=list(range(len(self.opt.device))))
+                return obj
             return obj.cuda()
 
     def to_cpu(self, obj):
@@ -137,7 +145,8 @@ class Trainer(object):
             self.dashboard.step()
             self.train_epoch(train_loader)
             if eval_loader is not None:
-                self.eval_epoch(eval_loader)
+                with torch.no_grad():
+                    self.eval_epoch(eval_loader)
             self.save_stat_dict()
             self._report_epoch()
             try:
@@ -151,7 +160,8 @@ class Trainer(object):
 
     @entry
     def eval(self, eval_loader):
-        self.eval_epoch(eval_loader)
+        with torch.no_grad():
+            self.eval_epoch(eval_loader)
 
     def train_epoch(self, data_loader):
         self.training = True
@@ -174,6 +184,7 @@ class Trainer(object):
                     f'Training '
                     f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                     f'[loss: {loss:.3f}]'
+                    f'[lr: {self.current_lr:.6f}]'
                 )
                 t.update()
 
@@ -194,6 +205,8 @@ class Trainer(object):
             for item in data_loader:
                 rets = self.eval_step(item)
                 loss, preds, labels = rets[:3]
+                self.eval_container.append({'preds': preds.cpu().numpy(),
+                                            'labels': labels.cpu().numpy()})
                 self.metric(preds, labels)
                 self.eval_meters['loss'].append(loss)
                 t.set_description(
@@ -214,9 +227,19 @@ class Trainer(object):
             self.best = False
         self.latest_loss = latest_loss
 
+    @property
+    def current_lr(self):
+        max_lr = 0.0
+        for _, val in self.nn_optimizers.items():
+            lr_set = list(set([para['lr'] for para in val.param_groups]))
+            if max(lr_set) > max_lr:
+                max_lr = max(lr_set)
+        return max_lr
+
     def save_stat_dict(self):
         state_dict = self.state_dict()
         self.saver.save_state_dict(state_dict, best=self.best)
+        self.saver.save_container(self.eval_container, best=self.best)
 
     def train_step(self, item):
         # return loss, preds, labels, ....

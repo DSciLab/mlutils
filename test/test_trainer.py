@@ -14,7 +14,8 @@ class Mod(nn.Module):
 
 class Opts:
     def __init__(self):
-        self.id = 1
+        self.id = '1'
+        self.image_chan = 3
 
     def get(self, key, default=None):
         return default

@@ -36,6 +36,13 @@ class Saver(object):
                 shutil.rmtree(path)
         os.mkdir(path)
 
+    def save_container(self, container, best=False):
+        container.dump()
+        if best:
+            Log.info(f'Save best container [{container.name}].')
+            best_path = container.target_path.replace('latest', 'best')
+            shutil.copyfile(container.target_path, best_path)
+
     def save_state_dict(self, state_dict, best=False):
         if self.test:
             # Do nothing on test stage
