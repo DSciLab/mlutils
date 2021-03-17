@@ -3,7 +3,7 @@ PIP            := pip
 PYTHON         := python
 
 
-.PHONY: all dep push install clean
+.PHONY: all dep install clean
 
 
 all: dep push install
@@ -11,17 +11,6 @@ all: dep push install
 
 dep: $(REQUIREMENTS)
 	$(PIP) install -r $<
-
-
-commit: clean
-	# Not Recommended
-	git add -A
-	-git commit -m 'Update project'
-	git pull
-
-
-push: commit
-	git push
 
 
 install: dep

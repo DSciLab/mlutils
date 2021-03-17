@@ -85,3 +85,11 @@ class Kappa(Metric):
 class ECE(Metric):
     def __init__(self):
         super().__init__()
+
+
+class Dice(Metric):
+    def __init__(self, opt):
+        super().__init__(opt)
+
+    def __call__(self):
+        return super().__call__()
