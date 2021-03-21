@@ -240,6 +240,7 @@ class Trainer(object):
         state_dict = self.state_dict()
         self.saver.save_state_dict(state_dict, best=self.best)
         self.saver.save_container(self.eval_container, best=self.best)
+        self.eval_container.reset()
 
     def train_step(self, item):
         # return loss, preds, labels, ....

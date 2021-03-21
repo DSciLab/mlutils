@@ -44,3 +44,6 @@ class DataContainer(object):
     def dump(self):
         with open(self.target_path, 'wb') as f:
             pickle.dump(self._data_dict, f)
+
+    def reset(self):
+        self._data_dict = {}
