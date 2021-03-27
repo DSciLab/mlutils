@@ -6,10 +6,12 @@ import random
 
 from .trainer import Trainer
 from .log import Log
-from .dashboard import Dashobard
+from .dashboard import Dashobard, show_dashboard
 from .meter import AverageMeter
 from .saver import Saver
 from .imread import imread
+from .container import DataContainer
+from .utils import LogitToPreds, MultiLoss
 
 
 def init(opt):
@@ -23,6 +25,10 @@ def init(opt):
         os.environ['CUDA_VISIBLE_DEVICES'] = device
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
+    if opt.get('test', False):
+        saver = Saver(opt)
+        saver.load_cfg(opt)
 
     if hasattr(opt, 'seed'):
         random.seed(opt.seed)

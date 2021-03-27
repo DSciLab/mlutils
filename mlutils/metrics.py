@@ -39,12 +39,15 @@ class Metric(object):
 
 class Accuracy(Metric):
     def __call__(self, pred, target):
-        target = self.de_onehot(target)
         pred = self.de_onehot(pred)
+        if pred.ndim != target.ndim:
+            target = self.de_onehot(target)
         assert pred.shape == target.shape
 
         pred = self.to_numpy(pred)
         target = self.to_numpy(target)
+        pred = pred.reshape(-1)
+        target = target.reshape(-1)
         return metrics.accuracy_score(target, pred)
 
     
@@ -95,19 +98,29 @@ class Dice(Metric):
         assert normalization in ['sigmoid', 'softmax', 'none']
 
         self.num_classes = opt.num_classes
-        if normalization == 'sigmoid':
-            self.normalization = nn.Sigmoid()
-        elif normalization == 'softmax':
-            self.normalization = nn.Softmax(dim=1)
-        else:
-            self.normalization = lambda x: x
 
-    def __call__(self, input, target):
-        input = self.normalization(input)
+    def dice_2d(self, input, target):
         if input.dim() == target.dim() + 1:
             target = expand_as_one_hot(target, self.num_classes)
 
         return compute_per_channel_dice(input, target)
+
+    def dice_3d(self, input, target):
+        if input.dim() == target.dim() + 1:
+            target = expand_as_one_hot(target, self.num_classes)
+
+        return compute_per_channel_dice(input, target)
+
+    def __call__(self, input, target):
+        if target.ndim == 3:
+            # N * X * Y
+            return self.dice_2d(input, target)
+        elif target.ndim == 4:
+            # N * X * Y * Z
+            return self.dice_3d(input, target)
+        else:
+            raise RuntimeError(
+                f'The shape of target is {target.shape}.')
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
@@ -170,7 +183,7 @@ def expand_as_one_hot(input, C, ignore_index=None):
     Returns:
         4D/5D output torch.Tensor (NxCxSPATIAL)
     """
-    assert input.dim() == 4
+    # assert input.dim() == 4
 
     # expand the input tensor to Nx1xSPATIAL before scattering
     input = input.unsqueeze(1)

@@ -1,6 +1,6 @@
+from collections import defaultdict
 import os
 import pickle
-import numpy as np
 
 
 class DataContainer(object):
@@ -14,7 +14,7 @@ class DataContainer(object):
             os.mkdir(target_dir)
         self.name = name
         self.target_path = os.path.join(target_dir, f'{name}_latest.pickle')
-        self._data_dict = {}
+        self._data_dict = defaultdict(lambda: [])
 
     def __getitem__(self, key):
         return self._data_dict[key]
@@ -22,18 +22,18 @@ class DataContainer(object):
     def __setitem__(self, key, value):
         self._data_dict[key] = value
 
+    def keys(self):
+        return self._data_dict.keys()
+
+    def items(self, *keys):
+        zip_items = [self[key] for key in keys]
+        for item in zip(*zip_items):
+            yield item
+
     def append(self, data_dict):
         assert isinstance(data_dict, dict)
-
-        if not self._data_dict:
-            self._data_dict = data_dict
-        else:
-            assert sorted(self._data_dict.keys()) \
-                == sorted(data_dict.keys())
-            for key in data_dict.keys():
-                self._data_dict[key] = np.concatenate([self._data_dict[key],
-                                                       data_dict[key]],
-                                                      axis=0)
+        for key in data_dict.keys():
+            self._data_dict[key].append(data_dict[key])
 
     def load(self):
         with open(self.target_path, 'rb') as f:
@@ -43,7 +43,8 @@ class DataContainer(object):
 
     def dump(self):
         with open(self.target_path, 'wb') as f:
-            pickle.dump(self._data_dict, f)
+            _data_dict = dict(self._data_dict)
+            pickle.dump(_data_dict, f)
 
     def reset(self):
-        self._data_dict = {}
+        self._data_dict = defaultdict(lambda: [])

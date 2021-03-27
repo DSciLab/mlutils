@@ -12,6 +12,7 @@ from .meter import AverageMeter
 from .dashboard import Dashobard
 from .saver import Saver
 from .container import DataContainer
+from .utils import LogitToPreds
 
 
 def entry(fn):
@@ -24,26 +25,31 @@ class Trainer(object):
     TRACE_FREQ = 41
     def __init__(self, opt):
         self.opt = opt
+        self.saver = Saver(opt)
         self.stop_watch = StopWatch()
         self.dashboard = Dashobard(opt)
         self.epoch = 0
         self.step = 0
-        self.saver = Saver(opt)
         self.metrics = []
         self.train_meters = {}
         self.eval_meters = {}
+        self.test_meters = {}
         self.nn_models = {}
         self.nn_optimizers = {}
         self.lr_schedulers = {}
         self.training = True
+        self.testing = False
         self.best = False
         self.latest_loss = np.Inf
         self.eval_container = DataContainer('eval_data', opt)
     
         train_loss_meter = AverageMeter('train_loss')
         eval_loss_meter = AverageMeter('eval_loss')
+        test_loss_meter = AverageMeter('test_loss')
         self.train_meters['loss'] = train_loss_meter
         self.eval_meters['loss'] = eval_loss_meter
+        self.test_meters['loss'] = test_loss_meter
+        self.logit_to_preds = LogitToPreds(opt)
 
         self.saver.save_cfg(opt)
 
@@ -97,13 +103,17 @@ class Trainer(object):
             
             train_meter = AverageMeter(metric.__class__.__name__)
             eval_meter = AverageMeter(metric.__class__.__name__)
+            test_meter = AverageMeter(metric.__class__.__name__)
             self.metrics.append(metric)
             self.train_meters[train_meter.name] = train_meter
             self.eval_meters[eval_meter.name] = eval_meter
+            self.test_meters[test_meter.name] = test_meter
 
     def metric(self, preds, labels):
         if self.training:
             meters = self.train_meters
+        elif self.testing:
+            meters = self.test_meters
         else:
             meters = self.eval_meters
 
@@ -226,6 +236,54 @@ class Trainer(object):
         else:
             self.best = False
         self.latest_loss = latest_loss
+
+    def test(self, test_dataloader):
+        self.training = False
+        self.testing = True
+        test_container = DataContainer('testResult', self.opt)
+        test_stop_watch = StopWatch()
+        for model in self.nn_models.values():
+            model.eval()
+
+        data_len = len(test_dataloader)
+        cnt = 0
+        with trange(data_len) as t:
+            for item in test_dataloader:
+                assert isinstance(item, (tuple, list)) and len(item) >= 2, \
+                    f'Testing dataset return should be a instance of tuple and length of ' + \
+                    f'the tuple should be >= 2, but the type of item is {type(item)} and ' + \
+                    f'length of item is {len(item)}.'
+                case_id = item[0][0]
+                item = item[1:]
+                assert isinstance(case_id, str), \
+                    f'The type of case_id should be str, but {type(case_id)} got.'
+                with torch.no_grad():
+                    test_stop_watch.start()
+                    rets = self.inference(*item)
+                    test_stop_watch.lap()
+                    preds, labels = rets
+                    data = item[0]
+                    test_container.append({'preds': preds.cpu().numpy(),
+                                           'labels': labels.cpu().numpy(),
+                                           'data': data.numpy(),
+                                           'case_id': case_id})
+                    self.metric(preds, labels)
+                t.set_description(
+                    f'[Testing {cnt}/{data_len}]'
+                )
+                t.update()
+                cnt += 1
+
+        for meter in self.test_meters.values():
+            meter.step()
+            Log.info(meter)
+
+        Log.info(test_stop_watch.show_statistic())
+        test_container.dump()
+        self.testing = False
+
+    def inference(self, vox):
+        raise NotImplementedError
 
     @property
     def current_lr(self):

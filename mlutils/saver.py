@@ -13,14 +13,13 @@ class Saver(object):
 
     def __init__(self, opt):
         self.test = opt.get('test', False)
-        saver_root = opt.get('saver_root', self.DEFAULT_ROOT)
-        saver_dir = os.path.join(saver_root, opt.id)
+        saver_dir = os.path.join(self.DEFAULT_ROOT, opt.id)
         self.latest_path = os.path.join(saver_dir, self.LATEST_STATE)
         self.best_path = os.path.join(saver_dir, self.BEST_STATE)
         self.meters_path = os.path.join(saver_dir, self.METER_LOG)
         self.cfg_path = os.path.join(saver_dir, self.CFG_FILE)
         if not self.test:
-            self.create_saver_dir(opt, saver_dir, saver_root)
+            self.create_saver_dir(opt, saver_dir, self.DEFAULT_ROOT)
         Log.info('initiated saver.')
 
     def create_saver_dir(self, opt, path, root):
