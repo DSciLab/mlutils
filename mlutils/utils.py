@@ -44,3 +44,9 @@ class MultiLoss(nn.Module):
         for item in self._losses:
             loss += item['loss_fn'](inp, gt) * item['weight']
         return loss
+
+
+def threhold_seg(inp, th=0.5):
+    inp[inp>0.5] = 1.
+    inp[inp<=0.5] = 0.
+    return inp

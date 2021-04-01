@@ -11,7 +11,9 @@ from .meter import AverageMeter
 from .saver import Saver
 from .imread import imread
 from .container import DataContainer
-from .utils import LogitToPreds, MultiLoss
+from .utils import LogitToPreds, MultiLoss, threhold_seg
+from .model import EMAModel
+from .inspector import Inspector
 
 
 def init(opt):
