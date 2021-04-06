@@ -83,7 +83,7 @@ class Inspector(object):
     def regist_layers(self, *layers):
         for layer in layers:
             self.regist_module_forest.add_layer(layer)
-    
+
     def regist_one_hot(self, one_hot):
         self.one_hot = one_hot
 
@@ -139,7 +139,7 @@ class Inspector(object):
             cam = torch.zeros(feat.shape[-2:])
             weights = torch.mean(grad, dim=(1, 2))
             for i, w in enumerate(weights):
-                cam += feat[i, :, :] * w
+                cam += feat[i] * w
             self.cams.append(cam)
 
         if self.training:
@@ -176,3 +176,6 @@ class Inspector(object):
         self.features = []
         self.gradients = []
         return outputs
+
+    def show_cam_on_voxs(self, vox):
+        pass
