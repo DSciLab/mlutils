@@ -222,6 +222,7 @@ class Trainer(object):
         self.dashboard.eval()
         for model in self.nn_models.values():
             model.eval()
+            model.zero_grad()
         for meter in self.eval_meters.values():
             meter.zero()
 
