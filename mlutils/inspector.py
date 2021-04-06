@@ -120,7 +120,6 @@ class Inspector(object):
                 else:
                     child_node = node.get_child(name)
                     x = exec(m, child_node, x)
-
             return x
 
         x = exec(self.model, self.regist_module_forest, x)

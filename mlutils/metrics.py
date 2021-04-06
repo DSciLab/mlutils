@@ -10,8 +10,8 @@ __all__ = ['Accuracy', 'F1Score', 'AUROC', 'ECE', 'Kappa']
 
 def threhold(inp, th=0.5):
     inp_ = np.copy(inp)
-    inp_[inp_>0.5] = 1.
-    inp_[inp_<=0.5] = 0.
+    inp_[inp_>th] = 1.
+    inp_[inp_<=th] = 0.
     return inp_
 
 
@@ -170,9 +170,8 @@ def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
     if weight is not None:
         intersect = weight * intersect
 
-    # here we can use standard dice (input + target).sum(-1) or extension
-    # (see V-Net) (input^2 + target^2).sum(-1)
-    denominator = (input * input).sum(-1) + (target * target).sum(-1)
+    # here we can use standard dice (input + target).sum(-1)
+    denominator = input.sum(-1) + target.sum(-1)
     return 2 * (intersect / denominator.clip(min=epsilon)).mean()
 
 

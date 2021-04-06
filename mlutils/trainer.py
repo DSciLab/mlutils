@@ -15,9 +15,22 @@ from .container import DataContainer
 from .utils import LogitToPreds
 
 
-def entry(fn):
+def detach_cpu(fn):
     def __fn(*args, **kwargs):
-        fn(*args, **kwargs)
+        outputs = fn(*args, **kwargs)
+        if isinstance(outputs, tuple):
+            return_list = []
+            for output in outputs:
+                if isinstance(output, torch.Tensor):
+                    return_list.append(output.detach().cpu())
+                else:
+                    return_list.append(output)
+            return tuple(return_list)
+        else:
+            if isinstance(outputs, torch.Tensor):
+                return outputs.detach().cpu()
+            else:
+                return outputs
     return __fn
 
 
@@ -57,7 +70,7 @@ class Trainer(object):
         Log.info(f'ID: {opt.id}')
         Log.debug(opt.perfect())
 
-    def to_gpu(self, obj, parallel=False):
+    def to_gpu(self, obj, parallel=False, gpu_id=None):
         if self.opt.get('device', None) is None:
             return obj
         else:
@@ -66,7 +79,12 @@ class Trainer(object):
                 obj = torch.nn.DataParallel(
                     obj, device_ids=list(range(len(self.opt.device))))
                 return obj
-            return obj.cuda()
+            else:
+                if gpu_id is None:
+                    return obj.cuda()
+                else:
+                    device = torch.device(f'cuda:{gpu_id}')
+                    return obj.to(device)
 
     def to_cpu(self, obj):
         return obj.cpu()
@@ -137,7 +155,6 @@ class Trainer(object):
     def report_epoch(self):
         raise NotImplementedError
 
-    @entry
     def train(self, train_loader, eval_loader=None):
         try:
             self.on_training_begin()
@@ -168,7 +185,6 @@ class Trainer(object):
         except NotImplementedError:
             pass
 
-    @entry
     def eval(self, eval_loader):
         with torch.no_grad():
             self.eval_epoch(eval_loader)
@@ -178,7 +194,6 @@ class Trainer(object):
         self.dashboard.train()
         for model in self.nn_models.values():
             model.train()
-
         for meter in self.train_meters.values():
             meter.zero()
 

@@ -4,7 +4,7 @@ import torch.cuda
 import numpy as np
 import random
 
-from .trainer import Trainer
+from .trainer import Trainer, detach_cpu
 from .log import Log
 from .dashboard import Dashobard, show_dashboard
 from .meter import AverageMeter
@@ -23,10 +23,18 @@ def init(opt):
         else:
             device = opt.device
 
+        # check gpu
+        if hasattr(opt, 'gpu_black_list'):
+            assert  hasattr(opt, 'hostname'), f'hostname not found.'
+            gpu_black_list = opt.gpu_black_list[opt.hostname]
+
+            for gpu_id in device:
+                if gpu_id in gpu_black_list:
+                    raise RuntimeError(
+                        f'GPU_{gpu_id} in GPU black list of {opt.hostname}.')
+
         device = ','.join([str(d) for d in device])
         os.environ['CUDA_VISIBLE_DEVICES'] = device
-    else:
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
     if opt.get('test', False):
         saver = Saver(opt)
@@ -34,6 +42,8 @@ def init(opt):
 
     if hasattr(opt, 'seed'):
         random.seed(opt.seed)
-        torch.seed(opt.seed)
-        torch.cuda.seed(opt.seed)
+        torch.manual_seed(opt.seed)
+        torch.cuda.manual_seed(opt.seed)
         np.random.seed(opt.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = True

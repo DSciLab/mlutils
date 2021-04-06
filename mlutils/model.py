@@ -7,6 +7,7 @@ class EMAModel(nn.Module):
         super().__init__()
         self._dummy_param = nn.Parameter(torch.empty(0), requires_grad=False)
         self.alpha = opt.ema_alpha
+        self.global_step = 0
         self.shadow_model = init_model
 
     @property
@@ -16,7 +17,7 @@ class EMAModel(nn.Module):
     def update(self, model):
         alpha = min(1 - 1 / (self.global_step + 1), self.alpha)
         for shadow_param, param in zip(self.shadow_model.parameters(), model.parameters()):
-            shadow_param.data.mul_(alpha).add_(1 - alpha, param.data.to(self.device))
+            shadow_param.data.mul_(alpha).add_(param.data.to(self.device), alpha=1-alpha)
 
     def forward(self, x):
         self.global_step += 1
