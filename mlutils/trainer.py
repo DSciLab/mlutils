@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import inspect
+from mlutils.dataloader import DataLoader
 from tqdm import trange
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
@@ -13,6 +14,7 @@ from .dashboard import Dashobard
 from .saver import Saver
 from .container import DataContainer
 from .utils import LogitToPreds
+from . import gen
 
 
 def detach_cpu(fn):
@@ -53,6 +55,8 @@ class Trainer(object):
         self.training = True
         self.testing = False
         self.best = False
+        self.train_loader = None
+        self.eval_loader = None
         self.latest_loss = np.Inf
         self.eval_container = DataContainer('eval_data', opt)
     
@@ -70,6 +74,7 @@ class Trainer(object):
         Log.info(f'ID: {opt.id}')
         Log.debug(opt.perfect())
 
+    @gen.asynchrony
     def to_gpu(self, obj, parallel=False, gpu_id=None):
         if self.opt.get('device', None) is None:
             return obj
@@ -86,6 +91,7 @@ class Trainer(object):
                     device = torch.device(f'cuda:{gpu_id}')
                     return obj.to(device)
 
+    @gen.asynchrony
     def to_cpu(self, obj):
         return obj.cpu()
 
@@ -127,6 +133,8 @@ class Trainer(object):
             self.eval_meters[eval_meter.name] = eval_meter
             self.test_meters[test_meter.name] = test_meter
 
+    @gen.asynchrony
+    @gen.synchrony
     def metric(self, preds, labels):
         if self.training:
             meters = self.train_meters
@@ -137,7 +145,7 @@ class Trainer(object):
 
         for metric in self.metrics:
             meter = meters[metric.__class__.__name__]
-            meter.append(metric(preds, labels))
+            meter.append(metric((yield preds), (yield labels)))
 
     def _report_epoch(self):
         try:
@@ -155,7 +163,21 @@ class Trainer(object):
     def report_epoch(self):
         raise NotImplementedError
 
+    def update_transformer_param(self):
+        if self.train_loader is not None and \
+            isinstance(self.train_loader, DataLoader):
+            self.train_loader.update_transformer(
+                verbose=self.opt.get('debug', False))
+
+        if self.train_loader is not None and \
+            isinstance(self.eval_loader, DataLoader):
+            self.eval_loader.update_transformer(
+                verbose=self.opt.get('debug', False))
+
     def train(self, train_loader, eval_loader=None):
+        self.train_loader = train_loader
+        self.eval_loader = eval_loader
+
         try:
             self.on_training_begin()
         except NotImplementedError:
@@ -170,10 +192,11 @@ class Trainer(object):
             except NotImplementedError:
                 pass
             self.dashboard.step()
-            self.train_epoch(train_loader)
-            if eval_loader is not None:
+
+            self.train_epoch(self.train_loader)
+            if self.eval_loader is not None:
                 with torch.no_grad():
-                    self.eval_epoch(eval_loader)
+                    self.eval_epoch(self.eval_loader)
             self.save_stat_dict()
             self._report_epoch()
             try:
@@ -189,6 +212,7 @@ class Trainer(object):
         with torch.no_grad():
             self.eval_epoch(eval_loader)
 
+    @gen.synchrony
     def train_epoch(self, data_loader):
         self.training = True
         self.dashboard.train()
@@ -198,25 +222,38 @@ class Trainer(object):
             meter.zero()
 
         data_len = len(data_loader)
+        metric_futures = gen.FutureList()
         with trange(data_len) as t:
             for item in data_loader:
                 self.step += 1
                 rets = self.train_step(item)
                 loss, preds, labels = rets[:3]
-                self.metric(preds, labels)
+                metric_future = self.metric(preds, labels)
+                metric_futures.append(metric_future)
+                loss = yield loss
                 self.train_meters['loss'].append(loss)
                 t.set_description(
                     f'Training '
                     f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                     f'[loss: {loss:.3f}]'
-                    f'[lr: {self.current_lr:.6f}]'
+                    f'[lr: {self.current_lr:.7f}]'
                 )
                 t.update()
 
+        yield metric_futures
         for meter in self.train_meters.values():
             meter.step()
             self.dashboard.add_meter(meter)
 
+    @gen.asynchrony
+    @gen.synchrony
+    def eval_container_append(self, preds, labels):
+        preds = yield preds
+        labels = yield labels
+        self.eval_container.append({'preds': preds.numpy(),
+                                    'labels': labels.numpy()})
+
+    @gen.synchrony
     def eval_epoch(self, data_loader):
         self.training = False
         self.dashboard.eval()
@@ -227,13 +264,16 @@ class Trainer(object):
             meter.zero()
 
         data_len = len(data_loader)
+        futures_list = gen.FutureList()
         with trange(data_len) as t:
             for item in data_loader:
                 rets = self.eval_step(item)
                 loss, preds, labels = rets[:3]
-                self.eval_container.append({'preds': preds.cpu().numpy(),
-                                            'labels': labels.cpu().numpy()})
-                self.metric(preds, labels)
+                loss = yield loss
+                future_container = self.eval_container_append(preds, labels)
+                futures_list.append(future_container)
+                future_metric = self.metric(preds, labels)
+                futures_list.append(future_metric)
                 self.eval_meters['loss'].append(loss)
                 t.set_description(
                     f'Validation {self.step} | '
@@ -241,6 +281,7 @@ class Trainer(object):
                 )
                 t.update()
 
+        yield futures_list
         for meter in self.eval_meters.values():
             meter.step()
             self.dashboard.add_meter(meter)
@@ -309,6 +350,9 @@ class Trainer(object):
             if max(lr_set) > max_lr:
                 max_lr = max(lr_set)
         return max_lr
+
+    curr_lr = current_lr
+    lr = current_lr
 
     def save_stat_dict(self):
         state_dict = self.state_dict()
