@@ -3,6 +3,7 @@ import torch
 import torch.cuda
 import numpy as np
 import random
+import datetime
 
 from .trainer import Trainer, detach_cpu
 from .log import Log
@@ -14,6 +15,19 @@ from .container import DataContainer
 from .utils import LogitToPreds, MultiLoss, threhold_seg
 from .model import EMAModel
 from .inspector import Inspector
+import random
+
+
+def gen_code():
+    d = datetime.datetime.now()
+    date_str = d.strftime('%Y%m%d_%H%M%S')
+    code = ''.join(random.choices('0123456789qwertyui' + \
+                                'opasdfghjklzxcvbnmQWERT' + \
+                                'YUIOPASDFGHJKLZXCVBNM', k=5))
+    return f'{code}-{date_str}'
+
+
+__version__ = f'0.1-{gen_code()}'
 
 
 def init(opt):

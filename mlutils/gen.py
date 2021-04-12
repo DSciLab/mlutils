@@ -26,6 +26,9 @@ class FutureList(object):
         self.future_list = []
 
     def append(self, future):
+        assert isinstance(future, Future), \
+            'Typer error, future is not an instance of Future, ' + \
+            f'type(future)={type(future)}'
         self.future_list.append(future)
 
     def consume_all(self):

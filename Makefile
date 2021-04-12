@@ -3,10 +3,14 @@ PIP            := pip
 PYTHON         := python
 
 
-.PHONY: all dep install clean
+.PHONY: all dep install clean dist
 
 
 all: dep push install
+
+
+dist:
+	$(PYTHON) setup.py sdist
 
 
 dep: $(REQUIREMENTS)
