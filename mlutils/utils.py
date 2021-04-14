@@ -39,10 +39,10 @@ class MultiLoss(nn.Module):
                 'weight': weight
             })
 
-    def forward(self, inp, gt):
+    def forward(self, inp, gt, *args, **kwargs):
         loss = 0
         for item in self._losses:
-            loss += item['loss_fn'](inp, gt) * item['weight']
+            loss += item['loss_fn'](inp, gt, *args, **kwargs) * item['weight']
         return loss
 
 
