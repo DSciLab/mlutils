@@ -1,3 +1,4 @@
+import datetime
 import torch
 import numpy as np
 import inspect
@@ -154,9 +155,10 @@ class Trainer(object):
             pass
 
         Log.info(f'ID: {self.opt.id}')
+        Log.info(f'Now: {datetime.datetime.now().ctime()}')
         Log.info(f'Duration: {self.stop_watch.perfect_lap()}')
-        if self.dashboard.enabled:
-            Log.info(f'Dashboard: {self.dashboard.address}')
+        # if self.dashboard.enabled:
+        #     Log.info(f'Dashboard: {self.dashboard.address}')
         for meter in self.eval_meters.values():
             Log.info(meter)
 
