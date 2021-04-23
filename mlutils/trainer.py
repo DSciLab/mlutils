@@ -59,6 +59,7 @@ class Trainer(object):
         self.train_loader = None
         self.eval_loader = None
         self.latest_loss = np.Inf
+        self.min_loss = np.Inf
         self.eval_container = DataContainer('eval_data', opt)
     
         train_loss_meter = AverageMeter('train_loss')
@@ -289,12 +290,12 @@ class Trainer(object):
             self.dashboard.add_meter(meter)
 
         loss_meter = self.eval_meters['loss']
-        latest_loss = loss_meter.avg
-        if latest_loss < self.latest_loss:
+        self.latest_loss = loss_meter.avg
+        if self.latest_loss < self.min_loss:
             self.best = True
+            self.min_loss = self.latest_loss
         else:
             self.best = False
-        self.latest_loss = latest_loss
 
     def test(self, test_dataloader):
         self.training = False
