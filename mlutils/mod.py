@@ -6,10 +6,10 @@ __all__ = ['get', 'register']
 __MODS__ = defaultdict(lambda: {})
 
 
-def get(group_name, bind_name):
+def get(group_name, name):
     """
         group_name(str): group name of the class or function belong to.
-        bind_name(str): bind name for the class or function
+        name(str): module name or alias name for the class or function
         >>> f = get('test_group', 'f_function')
         >>> f()
         >>> #============
@@ -20,32 +20,33 @@ def get(group_name, bind_name):
         raise RuntimeError(
             f'No such mod group named ({group_name}).')
     group = __MODS__[group_name]
-    if bind_name not in group.keys():
+    if name not in group.keys():
         raise RuntimeError(
-            f'No such mod named ({bind_name}) in group ({group_name}).')
-    return group[bind_name]
+            f'No such mod named ({name}) in group ({group_name}).')
+    return group[name]
 
 
 def register(group_name, **kwargs):
     """
         group_name(str): group name of the class or function belong to.
-        bind_name(str): bind name for the class or function,
+        alias_name(str): bind name for the class or function,
             default: the class name or the function name
-        >>> @register('test_group', bind_name='f_function')
+        >>> @register('test_group', alias_name='f_function')
         >>> def f(*args, **kwargs):
         >>>     pass
         >>> #=============
-        >>> @register('test_group', bind_name='a_class')
+        >>> @register('test_group', alias_name='a_class')
         >>> class A:
         >>>     def __init__(self):
         >>>         pass
     """
     def _exec(func):
         if inspect.isfunction(func) or inspect.isclass(func):
-            bind_name = kwargs.get('bind_name', None)
-            if bind_name is None:
-                bind_name = func.__name__
-            __MODS__[group_name][bind_name] = func
+            alias_name = kwargs.get('alias_name', None)
+            mod_name = func.__name__
+            __MODS__[group_name][mod_name] = func
+            if alias_name is not None:
+                __MODS__[group_name][alias_name] = func
         def __exec(*args, **kwargs):
             return func(*args, **kwargs)
         return __exec
