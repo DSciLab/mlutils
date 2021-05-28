@@ -114,81 +114,198 @@ class Dice(Metric):
         self.num_classes = opt.num_classes
         self.ignore_index = opt.get('ignore_index', None)
 
-    def dice_2d(self, input, target):
-        if input.ndim == target.ndim + 1:
-            target = expand_as_one_hot(target, self.num_classes)
+    # def dice_2d(self, input, target):
+    #     return compute_per_channel_dice(input, target)
 
-        return compute_per_channel_dice(input, target)
+    # def dice_3d(self, input, target):
+    #     return compute_per_channel_dice(input, target)
 
-    def dice_3d(self, input, target):
-        if input.ndim == target.ndim + 1:
-            target = expand_as_one_hot(target, self.num_classes)
+    def dice(self, test=None, reference=None, confusion_matrix=None,
+             nan_for_nonexisting=True, **kwargs):
+        """2TP / (2TP + FP + FN)"""
 
-        return compute_per_channel_dice(input, target)
+        if confusion_matrix is None:
+            confusion_matrix = ConfusionMatrix(test, reference,
+                                ignore_index=self.ignore_index)
 
-    def __call__(self, input, target):
-        input = self.to_numpy(input)
-        input = threhold(input)
+        tp, fp, tn, fn = confusion_matrix.get_matrix()
+        test_empty, test_full, reference_empty, reference_full \
+            = confusion_matrix.get_existence()
+
+        if test_empty and reference_empty:
+            if nan_for_nonexisting:
+                return float("NaN")
+            else:
+                return 0.
+
+        return float(2. * tp / (2. * tp + fp + fn))
+
+    def __call__(self, logit, target):
+        # logit: (B, C, X, Y, Z)
+        # target: (B, X, Y, Z)
+        # print('logit.shape', logit.shape)
+        # print('target.shape', target.shape)
+        if not logit.ndim == target.ndim + 1:
+            target = target.squeeze(1)
+        logit = self.to_numpy(logit)
         target = self.to_numpy(target)
+        pred = self.de_onehot(logit)   # to predict
+        assert pred.ndim == target.ndim
+        # logit: (B, X, Y, Z)
+        # target: (B, X, Y, Z)
+        pred = expand_as_one_hot(pred, self.num_classes)
+        target = expand_as_one_hot(target.astype(np.int),
+                                    self.num_classes)
+        # logit: (B, C, X, Y, Z)
+        # target: (B, C, X, Y, Z)
 
-        if input.ndim == 4:
-            # N * X * Y
-            return self.dice_2d(input, target)
-        elif input.ndim == 5:
-            # N * X * Y * Z
-            return self.dice_3d(input, target)
+        return self.dice(pred, target)
+        # if pred.ndim == 4:
+        #     # N * X * Y
+        #     return self.dice_2d(pred, target)
+        # elif pred.ndim == 5:
+        #     # N * X * Y * Z
+        #     return self.dice_3d(pred, target)
+        # else:
+        #     raise RuntimeError(
+        #         f'The shape of target is {target.shape}.')
+
+
+class ConfusionMatrix:
+    def __init__(self, test=None, reference=None, ignore_index=None):
+        assert ignore_index is None or isinstance(ignore_index, int)
+        self.tp = None
+        self.fp = None
+        self.tn = None
+        self.fn = None
+        self.size = None
+        self.reference_empty = None
+        self.reference_full = None
+        self.test_empty = None
+        self.test_full = None
+        self.ignore_index = ignore_index
+
+        assert reference.shape == test.shape
+        if self.ignore_index is not None:
+            self.gether_indices = list(range(reference.shape[1]))
+            self.gether_indices.remove(self.ignore_index)
+        self.set_reference(reference)
+        self.set_test(test)
+
+    def set_test(self, test):
+        if self.ignore_index is None:
+            self.test = test
         else:
-            raise RuntimeError(
-                f'The shape of target is {target.shape}.')
+            self.test = np.take(test, indices=self.gether_indices, axis=1)
+        self.reset()
+
+    def set_reference(self, reference):
+        if self.ignore_index is None:
+            self.reference = reference
+        else:
+            self.reference = np.take(reference, indices=self.gether_indices, axis=1)
+        self.reset()
+
+    def reset(self):
+        self.tp = None
+        self.fp = None
+        self.tn = None
+        self.fn = None
+        self.size = None
+        self.test_empty = None
+        self.test_full = None
+        self.reference_empty = None
+        self.reference_full = None
+
+    def compute(self):
+        if self.test is None or self.reference is None:
+            raise ValueError('\'test\' and \'reference\' must both be set '
+                             'to compute confusion matrix.')
+
+        assert self.test.shape == self.reference.shape, \
+               f'Shape mismatch: {self.test.shape} and {self.reference.shape}.'
+
+        self.tp = int(((self.test != 0) * (self.reference != 0)).sum())
+        self.fp = int(((self.test != 0) * (self.reference == 0)).sum())
+        self.tn = int(((self.test == 0) * (self.reference == 0)).sum())
+        self.fn = int(((self.test == 0) * (self.reference != 0)).sum())
+
+        self.size = int(np.prod(self.reference.shape, dtype=np.int64))
+        self.test_empty = not np.any(self.test)
+        self.test_full = np.all(self.test)
+        self.reference_empty = not np.any(self.reference)
+        self.reference_full = np.all(self.reference)
+
+    def get_matrix(self):
+        for entry in (self.tp, self.fp, self.tn, self.fn):
+            if entry is None:
+                self.compute()
+                break
+
+        return self.tp, self.fp, self.tn, self.fn
+
+    def get_size(self):
+        if self.size is None:
+            self.compute()
+        return self.size
+
+    def get_existence(self):
+        for case in (self.test_empty, self.test_full,
+                     self.reference_empty, self.reference_full):
+            if case is None:
+                self.compute()
+                break
+
+        return self.test_empty, self.test_full, \
+               self.reference_empty, self.reference_full
 
 
-def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
-    # TODO ignore index
-    """
-    Computes DiceCoefficient as defined in 
-        https://arxiv.org/abs/1606.04797 given  a multi channel 
-        input and target.
-    Assumes the input is a normalized probability, e.g. 
-        a result of Sigmoid or Softmax function.
+# def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
+#     """
+#     Computes DiceCoefficient as defined in 
+#         https://arxiv.org/abs/1606.04797 given  a multi channel 
+#         input and target.
+#     Assumes the input is a normalized probability, e.g. 
+#         a result of Sigmoid or Softmax function.
 
-    Args:
-         input (torch.Tensor): NxCxSpatial input tensor
-         target (torch.Tensor): NxCxSpatial target tensor
-         epsilon (float): prevents division by zero
-         weight (torch.Tensor): Cx1 tensor of weight per channel/class
-    """
+#     Args:
+#          input (torch.Tensor): NxCxSpatial input tensor
+#          target (torch.Tensor): NxCxSpatial target tensor
+#          epsilon (float): prevents division by zero
+#          weight (torch.Tensor): Cx1 tensor of weight per channel/class
+#     """
 
-    # input and target shapes must match
-    assert input.shape == target.shape, "'input' and 'target' must have the same shape"
+#     # input and target shapes must match
+#     assert input.shape == target.shape, "'input' and 'target' must have the same shape"
 
-    input = flatten(input)
-    target = flatten(target)
-    target = target.astype(np.float)
+#     input = flatten(input)
+#     target = flatten(target)
+#     target = target.astype(np.float)
 
-    # compute per channel Dice Coefficient
-    intersect = (input * target).sum(-1)
-    if weight is not None:
-        intersect = weight * intersect
+#     # compute per channel Dice Coefficient
+#     intersect = (input * target).sum(-1)
+#     if weight is not None:
+#         intersect = weight * intersect
 
-    # here we can use standard dice (input + target).sum(-1)
-    denominator = input.sum(-1) + target.sum(-1)
-    return 2 * (intersect / denominator.clip(min=epsilon)).mean()
+#     # here we can use standard dice (input + target).sum(-1)
+#     denominator = input.sum(-1) + target.sum(-1)
+#     return 2 * (intersect / denominator.clip(min=epsilon)).mean()
 
 
-def flatten(array):
-    """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, D, H, W) -> (C, N * D * H * W)
-    """
-    # number of channels
-    C = array.shape[1]
-    # new axis order
-    axis_order = (1, 0) + tuple(range(2, array.ndim))
-    # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
-    # transposed = tensor.permute(axis_order)
-    transposed = np.transpose(array, (axis_order))
-    # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
-    return transposed.reshape(C, -1)
+# def flatten(array):
+#     """Flattens a given tensor such that the channel axis is first.
+#     The shapes are transformed as follows:
+#        (N, C, D, H, W) -> (C, N * D * H * W)
+#     """
+#     # number of channels
+#     C = array.shape[1]
+#     # new axis order
+#     axis_order = (1, 0) + tuple(range(2, array.ndim))
+#     # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
+#     # transposed = tensor.permute(axis_order)
+#     transposed = np.transpose(array, (axis_order))
+#     # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
+#     return transposed.reshape(C, -1)
 
 
 def expand_as_one_hot(input, C):
@@ -217,122 +334,3 @@ def expand_as_one_hot(input, C):
     result = np.zeros(shape)
     np.put_along_axis(result, input, 1, axis=1)
     return result
-
-'''
-class Dice(Metric):
-    def __init__(self, opt):
-        super().__init__(opt)
-        normalization = opt.get('normalization', 'sigmoid')
-        assert normalization in ['sigmoid', 'softmax', 'none']
-
-        self.num_classes = opt.num_classes
-
-    def dice_2d(self, input, target):
-        if input.dim() == target.dim() + 1:
-            target = expand_as_one_hot(target, self.num_classes)
-
-        return compute_per_channel_dice(input, target)
-
-    def dice_3d(self, input, target):
-        if input.dim() == target.dim() + 1:
-            target = expand_as_one_hot(target, self.num_classes)
-
-        return compute_per_channel_dice(input, target)
-
-    def __call__(self, input, target):
-        input[input<=0.5] = 0.0
-        input[input>0.5] = 1.0
-
-        if target.ndim == 3:
-            # N * X * Y
-            return self.dice_2d(input, target)
-        elif target.ndim == 4:
-            # N * X * Y * Z
-            return self.dice_3d(input, target)
-        else:
-            raise RuntimeError(
-                f'The shape of target is {target.shape}.')
-
-
-def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
-    """
-    Computes DiceCoefficient as defined in 
-        https://arxiv.org/abs/1606.04797 given  a multi channel 
-        input and target.
-    Assumes the input is a normalized probability, e.g. 
-        a result of Sigmoid or Softmax function.
-    Args:
-         input (torch.Tensor): NxCxSpatial input tensor
-         target (torch.Tensor): NxCxSpatial target tensor
-         epsilon (float): prevents division by zero
-         weight (torch.Tensor): Cx1 tensor of weight per channel/class
-    """
-
-    # input and target shapes must match
-    assert input.size() == target.size(), "'input' and 'target' must have the same shape"
-
-    input = flatten(input)
-    target = flatten(target)
-    target = target.float()
-
-    # compute per channel Dice Coefficient
-    intersect = (input * target).sum(-1)
-    if weight is not None:
-        intersect = weight * intersect
-
-    # here we can use standard dice (input + target).sum(-1) or extension
-    # (see V-Net) (input^2 + target^2).sum(-1)
-    denominator = (input * input).sum(-1) + (target * target).sum(-1)
-    return 2 * (intersect / denominator.clamp(min=epsilon))
-
-
-def flatten(tensor):
-    """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, D, H, W) -> (C, N * D * H * W)
-    """
-    # number of channels
-    C = tensor.size(1)
-    # new axis order
-    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
-    # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
-    transposed = tensor.permute(axis_order)
-    # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
-    return transposed.contiguous().view(C, -1)
-
-
-def expand_as_one_hot(input, C, ignore_index=None):
-    """
-    Converts NxSPATIAL label image to NxCxSPATIAL, where each label gets
-        converted to its corresponding one-hot vector. It is assumed that
-        the batch dimension is present.
-    Args:
-        input (torch.Tensor): 3D/4D input image
-        C (int): number of channels/labels
-        ignore_index (int): ignore index to be kept during the expansion
-    Returns:
-        4D/5D output torch.Tensor (NxCxSPATIAL)
-    """
-    # assert input.dim() == 4
-
-    # expand the input tensor to Nx1xSPATIAL before scattering
-    input = input.unsqueeze(1)
-    # create output tensor shape (NxCxSPATIAL)
-    shape = list(input.size())
-    shape[1] = C
-
-    if ignore_index is not None:
-        # create ignore_index mask for the result
-        mask = input.expand(shape) == ignore_index
-        # clone the src tensor and zero out ignore_index in the input
-        input = input.clone()
-        input[input == ignore_index] = 0
-        # scatter to get the one-hot tensor
-        result = torch.zeros(shape).to(input.device).scatter_(1, input, 1)
-        # bring back the ignore_index in the result
-        result[mask] = ignore_index
-        return result
-    else:
-        # scatter to get the one-hot tensor
-        return torch.zeros(shape).to(input.device).scatter_(1, input, 1)
-'''

@@ -1,3 +1,4 @@
+import threading as T
 import datetime
 import torch
 import numpy as np
@@ -38,9 +39,13 @@ def detach_cpu(fn):
 
 
 class Trainer(object):
+    REPORT_LOCK = T.Lock()
     TRACE_FREQ = 41
-    def __init__(self, opt):
+
+    def __init__(self, opt, device_id=None):
+        self.device_id = device_id
         self.opt = opt
+        self.enable_progressbar = True
         self.saver = Saver(opt)
         self.stop_watch = StopWatch()
         self.dashboard = Dashobard(opt)
@@ -60,7 +65,8 @@ class Trainer(object):
         self.eval_loader = None
         self.latest_loss = np.Inf
         self.min_loss = np.Inf
-        self.eval_container = DataContainer('eval_data', opt)
+        self.curr_fold = 0
+        self.eval_container = DataContainer('eval_data')
     
         train_loss_meter = AverageMeter('train_loss')
         eval_loss_meter = AverageMeter('eval_loss')
@@ -72,26 +78,39 @@ class Trainer(object):
 
         self.saver.save_cfg(opt)
 
-        Log.info('Initiated Trainer')
-        Log.info(f'ID: {opt.id}')
-        Log.debug(opt.perfect())
+        # Log.info('Initiated Trainer')
+        # Log.info(f'ID: {opt.id}')
+        # Log.debug(opt.perfect())
 
     @gen.asynchrony
     def to_gpu(self, obj, parallel=False, gpu_id=None):
+        gpu_id = gpu_id or self.device_id
         if self.opt.get('device', None) is None:
             return obj
         else:
             if parallel and len(self.opt.device) > 1:
+                # for network
                 obj = obj.cuda()
                 obj = torch.nn.DataParallel(
                     obj, device_ids=list(range(len(self.opt.device))))
                 return obj
             else:
-                if gpu_id is None:
-                    return obj.cuda()
+                # for data
+                if isinstance(obj, (list, tuple)):
+                    objs = []
+                    for _obj in obj:
+                        objs.append(self._data_to_gpu(gpu_id, _obj))
+                    return objs
                 else:
-                    device = torch.device(f'cuda:{gpu_id}')
-                    return obj.to(device)
+                    return self._data_to_gpu(gpu_id, obj)
+
+    @staticmethod
+    def _data_to_gpu(gpu_id, obj):
+        if gpu_id is None:
+            return obj.cuda()
+        else:
+            device = torch.device(f'cuda:{gpu_id}')
+            return obj.to(device)
 
     @gen.asynchrony
     def to_cpu(self, obj):
@@ -150,6 +169,12 @@ class Trainer(object):
             meter.append(metric((yield preds), (yield labels)))
 
     def _report_epoch(self):
+        self.REPORT_LOCK.acquire()
+        if self.opt.train_mod == 'k_fold':
+            Log.info('==================')
+            Log.info(f'   Fold: {self.curr_fold}')
+            Log.info(f'   Epoch: {self.epoch}')
+            Log.info('==================')
         try:
             self.report_epoch()
         except NotImplementedError:
@@ -162,9 +187,14 @@ class Trainer(object):
         #     Log.info(f'Dashboard: {self.dashboard.address}')
         for meter in self.eval_meters.values():
             Log.info(meter)
+        self.REPORT_LOCK.release()
 
     def report_epoch(self):
         raise NotImplementedError
+
+    def set_fold(self, k):
+        self.curr_fold = k
+        self.saver.set_fold(k)
 
     def update_transformer_param(self):
         if self.train_loader is not None and \
@@ -226,7 +256,7 @@ class Trainer(object):
 
         data_len = len(data_loader)
         metric_futures = gen.FutureList()
-        with trange(data_len) as t:
+        with trange(data_len, disable=(not self.enable_progressbar)) as t:
             for item in data_loader:
                 self.step += 1
                 rets = self.train_step(item)
@@ -246,7 +276,8 @@ class Trainer(object):
         yield metric_futures
         for meter in self.train_meters.values():
             meter.step()
-            self.dashboard.add_meter(meter)
+            self.dashboard.add_meter(meter, fold=self.curr_fold,
+                                     training=True)
 
     @gen.asynchrony
     @gen.synchrony
@@ -268,7 +299,7 @@ class Trainer(object):
 
         data_len = len(data_loader)
         futures_list = gen.FutureList()
-        with trange(data_len) as t:
+        with trange(data_len, disable=(not self.enable_progressbar)) as t:
             for item in data_loader:
                 rets = self.eval_step(item)
                 loss, preds, labels = rets[:3]
@@ -287,7 +318,7 @@ class Trainer(object):
         yield futures_list
         for meter in self.eval_meters.values():
             meter.step()
-            self.dashboard.add_meter(meter)
+            self.dashboard.add_meter(meter, fold=self.curr_fold, training=False)
 
         loss_meter = self.eval_meters['loss']
         self.latest_loss = loss_meter.avg
@@ -300,7 +331,7 @@ class Trainer(object):
     def test(self, test_dataloader):
         self.training = False
         self.testing = True
-        test_container = DataContainer('testResult', self.opt)
+        test_container = DataContainer('testResult')
         test_stop_watch = StopWatch()
         for model in self.nn_models.values():
             model.eval()
@@ -339,7 +370,7 @@ class Trainer(object):
             Log.info(meter)
 
         Log.info(test_stop_watch.show_statistic())
-        test_container.dump()
+        self.saver.save_container(test_container)
         self.testing = False
 
     def inference(self, vox):

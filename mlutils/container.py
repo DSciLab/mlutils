@@ -4,16 +4,9 @@ import pickle
 
 
 class DataContainer(object):
-    DEFAULT_ROOT = '.saver'
-
-    def __init__(self, name, opt):
+    def __init__(self, name):
         super().__init__()
-        root = opt.get('saver_root', self.DEFAULT_ROOT)
-        target_dir = os.path.join(root, opt.id)
-        if not os.path.exists(target_dir):
-            os.mkdir(target_dir)
         self.name = name
-        self.target_path = os.path.join(target_dir, f'{name}_latest.pickle')
         self._data_dict = defaultdict(lambda: [])
 
     def __getitem__(self, key):
@@ -35,14 +28,14 @@ class DataContainer(object):
         for key in data_dict.keys():
             self._data_dict[key].append(data_dict[key])
 
-    def load(self):
-        with open(self.target_path, 'rb') as f:
+    def load(self, path):
+        with open(path, 'rb') as f:
             data = pickle.load(f)
         self._data_dict = data
         return data
 
-    def dump(self):
-        with open(self.target_path, 'wb') as f:
+    def dump(self, path):
+        with open(path, 'wb') as f:
             _data_dict = dict(self._data_dict)
             pickle.dump(_data_dict, f)
 

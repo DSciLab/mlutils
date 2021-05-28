@@ -9,9 +9,12 @@ from .meter import AverageMeter
 from .saver import Saver
 from .imread import imread
 from .container import DataContainer
-from .utils import LogitToPreds, MultiLoss, threhold_seg
+from .utils import LogitToPreds, MultiLoss,\
+                   threhold_seg, ProgressSign,\
+                   load_pickle, deep_supervised_weight
 from .model import EMAModel
 from .inspector import Inspector
+from .meter import KFoldMeter
 
 
 
