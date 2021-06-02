@@ -1,6 +1,7 @@
 import torch
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Generator
+from .log import Log
 
 
 class Singleton(type):
@@ -47,7 +48,11 @@ def set_max_workers(max_workers):
 
 def synchrony(func):
     def _exec(*args, **kwargs):
-        gen = func(*args, **kwargs)
+        try:
+            gen = func(*args, **kwargs)
+        except Exception as e:
+            Log.error(func)
+            raise e
         if isinstance(gen, Generator):
             res = next(gen)
             while True:
