@@ -160,15 +160,6 @@ class Dice(Metric):
         # target: (B, C, X, Y, Z)
 
         return self.dice(pred, target)
-        # if pred.ndim == 4:
-        #     # N * X * Y
-        #     return self.dice_2d(pred, target)
-        # elif pred.ndim == 5:
-        #     # N * X * Y * Z
-        #     return self.dice_3d(pred, target)
-        # else:
-        #     raise RuntimeError(
-        #         f'The shape of target is {target.shape}.')
 
 
 class ConfusionMatrix:
@@ -196,14 +187,16 @@ class ConfusionMatrix:
         if self.ignore_index is None:
             self.test = test
         else:
-            self.test = np.take(test, indices=self.gether_indices, axis=1)
+            self.test = np.take(
+                test, indices=self.gether_indices, axis=1)
         self.reset()
 
     def set_reference(self, reference):
         if self.ignore_index is None:
             self.reference = reference
         else:
-            self.reference = np.take(reference, indices=self.gether_indices, axis=1)
+            self.reference = np.take(
+                reference, indices=self.gether_indices, axis=1)
         self.reset()
 
     def reset(self):
