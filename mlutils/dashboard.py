@@ -96,7 +96,12 @@ class Dashobard(object, metaclass=Singleton):
                     else:
                         break
             else:
-                self.viz = Visdom(port=self.port, raise_exceptions=True)
+                try:
+                    self.viz = Visdom(port=self.port, raise_exceptions=True)
+                except ConnectionError as e:
+                    Log.error(f'Unable connect to visdom server '
+                              f'(http://{self.hostname}:{self.port})')
+                    raise e
             self.address = f'http://{self.hostname}:{self.port}/env/{self.opt.id}'
             Log.info('initiated dashboard.')
             Log.info(f'Address: {self.address}')

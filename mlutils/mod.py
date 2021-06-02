@@ -1,12 +1,14 @@
+import copy
 from collections import defaultdict
 import inspect
+from typing import Any, Callable
 
 
-__all__ = ['get', 'register']
+__all__ = ['get', 'register', 'all']
 __MODS__ = defaultdict(lambda: {})
 
 
-def get(group_name, name):
+def get(group_name: str, name: str) -> Any:
     """
         group_name(str): group name of the class or function belong to.
         name(str): module name or alias name for the class or function
@@ -26,7 +28,11 @@ def get(group_name, name):
     return group[name]
 
 
-def register(group_name, **kwargs):
+def all():
+    return copy.copy(__MODS__)
+
+
+def register(group_name: str, **kwargs) -> Callable:
     """
         group_name(str): group name of the class or function belong to.
         alias_name(str): bind name for the class or function,
