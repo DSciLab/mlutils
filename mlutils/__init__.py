@@ -30,17 +30,18 @@ def init(opt):
             device = opt.device
 
         # check gpu
-        if hasattr(opt, 'gpu_black_list'):
-            assert  hasattr(opt, 'hostname'), f'hostname not found.'
-            gpu_black_list = opt.gpu_black_list[opt.hostname]
+        if device[0] != -1:
+            if hasattr(opt, 'gpu_black_list'):
+                assert  hasattr(opt, 'hostname'), f'hostname not found.'
+                gpu_black_list = opt.gpu_black_list[opt.hostname]
 
-            for gpu_id in device:
-                if gpu_id in gpu_black_list:
-                    raise RuntimeError(
-                        f'GPU_{gpu_id} in GPU black list of {opt.hostname}.')
+                for gpu_id in device:
+                    if gpu_id in gpu_black_list:
+                        raise RuntimeError(
+                            f'GPU_{gpu_id} in GPU black list of {opt.hostname}.')
 
-        device = ','.join([str(d) for d in device])
-        os.environ['CUDA_VISIBLE_DEVICES'] = device
+            device = ','.join([str(d) for d in device])
+            os.environ['CUDA_VISIBLE_DEVICES'] = device
 
     if opt.get('test', False):
         saver = Saver(opt)

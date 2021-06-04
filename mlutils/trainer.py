@@ -78,6 +78,11 @@ class Trainer(object):
 
         self.saver.save_cfg(opt)
 
+        if self.opt.get('device', None) is None:
+            self.device = torch.device(f'cpu')
+        else:
+            self.device = torch.device(f'cuda:0')
+
         # Log.info('Initiated Trainer')
         # Log.info(f'ID: {opt.id}')
         # Log.debug(opt.perfect())
@@ -164,9 +169,13 @@ class Trainer(object):
         else:
             meters = self.eval_meters
 
-        for metric in self.metrics:
-            meter = meters[metric.__class__.__name__]
-            meter.append(metric((yield preds), (yield labels)))
+        preds = yield preds
+        labels = yield labels
+
+        if preds is not None and labels is not None:
+            for metric in self.metrics:
+                meter = meters[metric.__class__.__name__]
+                meter.append(metric(preds, labels))
 
     def _report_epoch(self):
         self.REPORT_LOCK.acquire()
@@ -272,6 +281,7 @@ class Trainer(object):
                     f'[lr: {self.current_lr:.7f}]'
                 )
                 t.update()
+                break # for debug
 
         yield metric_futures
         for meter in self.train_meters.values():
