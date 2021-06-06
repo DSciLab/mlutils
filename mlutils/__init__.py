@@ -43,7 +43,7 @@ def init(opt):
             device = ','.join([str(d) for d in device])
             os.environ['CUDA_VISIBLE_DEVICES'] = device
 
-    if opt.get('test', False):
+    if opt.get('testing', False) is True:
         saver = Saver(opt)
         saver.load_cfg(opt)
 

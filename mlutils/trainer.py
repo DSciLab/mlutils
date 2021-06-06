@@ -93,11 +93,13 @@ class Trainer(object):
         if self.opt.get('device', None) is None:
             return obj
         else:
-            if parallel and len(self.opt.device) > 1:
+            num_gpu = torch.cuda.device_count()
+            # print('num_gpu', num_gpu)
+            if parallel and num_gpu > 1:
                 # for network
                 obj = obj.cuda()
                 obj = torch.nn.DataParallel(
-                    obj, device_ids=list(range(len(self.opt.device))))
+                    obj, device_ids=list(range(num_gpu)))
                 return obj
             else:
                 # for data
@@ -179,7 +181,7 @@ class Trainer(object):
 
     def _report_epoch(self):
         self.REPORT_LOCK.acquire()
-        if self.opt.train_mod == 'k_fold':
+        if self.opt.get('train_mod', 'split') == 'k_fold':
             Log.info('==================')
             Log.info(f'   Fold: {self.curr_fold}')
             Log.info(f'   Epoch: {self.epoch}')
@@ -281,7 +283,7 @@ class Trainer(object):
                     f'[lr: {self.current_lr:.7f}]'
                 )
                 t.update()
-                break # for debug
+                # break # for debug
 
         yield metric_futures
         for meter in self.train_meters.values():
@@ -294,8 +296,9 @@ class Trainer(object):
     def eval_container_append(self, preds, labels):
         preds = yield preds
         labels = yield labels
-        self.eval_container.append({'preds': preds.numpy(),
-                                    'labels': labels.numpy()})
+        if preds is not None and labels is not None:
+            self.eval_container.append({'preds': preds.numpy(),
+                                        'labels': labels.numpy()})
 
     @gen.synchrony
     def eval_epoch(self, data_loader):
@@ -320,10 +323,11 @@ class Trainer(object):
                 futures_list.append(future_metric)
                 self.eval_meters['loss'].append(loss)
                 t.set_description(
-                    f'Validation {self.step} | '
-                    f'[{self.epoch}/{self.opt.epochs}]'
+                    f'Validation [{self.step}/'
+                    f'{self.epoch}/{self.opt.epochs}]'
                 )
                 t.update()
+                # break # For debug
 
         yield futures_list
         for meter in self.eval_meters.values():

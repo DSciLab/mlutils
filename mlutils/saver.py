@@ -16,11 +16,11 @@ class Saver(object):
     KFOLD_METER = 'k_fold_meter.pickle'
 
     def __init__(self, opt):
-        self.test = opt.get('test', False)
+        self.test = opt.get('testing', False)
         self.saver_dir = os.path.join(self.DEFAULT_ROOT, opt.id)
         self.cfg_path = os.path.join(self.saver_dir, self.CFG_FILE)
         self.curr_fold = 0
-        if not self.test:
+        if self.test is False:
             self.create_saver_dir(opt, self.saver_dir, self.DEFAULT_ROOT)
         # Log.info('initiated saver.')
 
@@ -49,18 +49,26 @@ class Saver(object):
 
     def create_saver_dir(self, opt, path, root):
         if not os.path.exists(root):
-            os.mkdir(root)
+            try:
+                os.mkdir(root)
+            except FileExistsError as e:
+                pass
 
         if os.path.exists(path):
-            if opt.train_mod == 'k_fold':
+            if opt.get('train_mod', 'split') == 'k_fold':
                 return
-            if not opt.get('override', False):
+            if not opt.get('override', False) and not opt.get('dist', False):
                 raise RuntimeError(
                     f'saver path ({path}) exists, '
                     'set overrde=True to override')
             else:
                 shutil.rmtree(path)
-        os.mkdir(path)
+
+        try:
+            os.mkdir(path)
+        except FileExistsError as e:
+            pass
+
 
     def save_container(self, container, best=False):
         assert isinstance(container, DataContainer)
@@ -94,7 +102,7 @@ class Saver(object):
         return meter
 
     def save_state_dict(self, state_dict, best=False):
-        if self.test:
+        if self.test is True:
             # Do nothing on test stage
             return
 
@@ -111,7 +119,7 @@ class Saver(object):
             raise RuntimeError(f'Unrecognized model ({model}).')
 
     def _save_best_state_dict(self):
-        if self.test:
+        if self.test is True:
             # Do nothing on test stage
             return
 
@@ -119,7 +127,7 @@ class Saver(object):
         shutil.copyfile(self.latest_path, self.best_path)
 
     def _save_latest_state_dict(self, state_dict):
-        if self.test:
+        if self.test is True:
             # Do nothing on test stage
             return
 
