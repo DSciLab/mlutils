@@ -3,6 +3,7 @@ import datetime
 import torch
 import numpy as np
 import inspect
+from torch.utils.data.dataloader import DataLoader as TorchDataLoader
 from mlutils.dataloader import DataLoader
 from tqdm import trange
 from torch.optim import Optimizer
@@ -49,6 +50,7 @@ class Trainer(object):
         self.saver = Saver(opt)
         self.stop_watch = StopWatch()
         self.dashboard = Dashobard(opt)
+        self.epochs = opt.epochs
         self.epoch = 0
         self.step = 0
         self.metrics = []
@@ -265,25 +267,48 @@ class Trainer(object):
         for meter in self.train_meters.values():
             meter.zero()
 
-        data_len = len(data_loader)
         metric_futures = gen.FutureList()
-        with trange(data_len, disable=(not self.enable_progressbar)) as t:
-            for item in data_loader:
-                self.step += 1
-                rets = self.train_step(item)
-                loss, preds, labels = rets[:3]
-                metric_future = self.metric(preds, labels)
-                metric_futures.append(metric_future)
-                loss = yield loss
-                self.train_meters['loss'].append(loss)
-                t.set_description(
-                    f'Training '
-                    f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
-                    f'[loss: {loss:.3f}]'
-                    f'[lr: {self.current_lr:.7f}]'
-                )
-                t.update()
-                # break # for debug
+        if isinstance(data_loader, (DataLoader, TorchDataLoader)):
+            data_len = len(data_loader)
+            with trange(data_len, disable=(not self.enable_progressbar)) as t:
+                for item in data_loader:
+                    self.step += 1
+                    rets = self.train_step(item)
+                    loss, preds, labels = rets[:3]
+                    metric_future = self.metric(preds, labels)
+                    metric_futures.append(metric_future)
+                    loss = yield loss
+                    self.train_meters['loss'].append(loss)
+                    t.set_description(
+                        f'Training '
+                        f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
+                        f'[loss: {loss:.3f}]'
+                        f'[lr: {self.current_lr:.7f}]'
+                    )
+                    t.update()
+                    # break # for debugging
+        else:
+            if hasattr(self, 'num_batch_per_epoch_train'):
+                num_batch_per_epoch = self.num_batch_per_epoch_train
+            else:
+                num_batch_per_epoch = 250
+
+            with trange(num_batch_per_epoch, disable=(not self.enable_progressbar)) as t:
+                for _ in t:
+                    item = next(data_loader)
+                    self.step += 1
+                    rets = self.train_step(item)
+                    loss, preds, labels = rets[:3]
+                    metric_future = self.metric(preds, labels)
+                    metric_futures.append(metric_future)
+                    loss = yield loss
+                    self.train_meters['loss'].append(loss)
+                    t.set_description(
+                        f'Training '
+                        f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
+                        f'[loss: {loss:.3f}]'
+                        f'[lr: {self.current_lr:.7f}]'
+                    )
 
         yield metric_futures
         for meter in self.train_meters.values():
@@ -310,24 +335,46 @@ class Trainer(object):
         for meter in self.eval_meters.values():
             meter.zero()
 
-        data_len = len(data_loader)
         futures_list = gen.FutureList()
-        with trange(data_len, disable=(not self.enable_progressbar)) as t:
-            for item in data_loader:
-                rets = self.eval_step(item)
-                loss, preds, labels = rets[:3]
-                loss = yield loss
-                future_container = self.eval_container_append(preds, labels)
-                futures_list.append(future_container)
-                future_metric = self.metric(preds, labels)
-                futures_list.append(future_metric)
-                self.eval_meters['loss'].append(loss)
-                t.set_description(
-                    f'Validation [{self.step}/'
-                    f'{self.epoch}/{self.opt.epochs}]'
-                )
-                t.update()
-                # break # For debug
+        if isinstance(data_loader, (DataLoader, TorchDataLoader)):
+            data_len = len(data_loader)
+            with trange(data_len, disable=(not self.enable_progressbar)) as t:
+                for item in data_loader:
+                    rets = self.eval_step(item)
+                    loss, preds, labels = rets[:3]
+                    loss = yield loss
+                    future_container = self.eval_container_append(preds, labels)
+                    futures_list.append(future_container)
+                    future_metric = self.metric(preds, labels)
+                    futures_list.append(future_metric)
+                    self.eval_meters['loss'].append(loss)
+                    t.set_description(
+                        f'Validation [{self.step}/'
+                        f'{self.epoch}/{self.opt.epochs}]'
+                    )
+                    t.update()
+                    # break # For debugging
+        else:
+            if hasattr(self, 'num_batch_per_epoch_val'):
+                num_batch_per_epoch = self.num_batch_per_epoch_val
+            else:
+                num_batch_per_epoch = 50
+            with trange(num_batch_per_epoch, disable=(not self.enable_progressbar)) as t:
+                for _ in t:
+                    item = next(data_loader)
+                    rets = self.eval_step(item)
+                    loss, preds, labels = rets[:3]
+                    loss = yield loss
+                    future_container = self.eval_container_append(preds, labels)
+                    futures_list.append(future_container)
+                    future_metric = self.metric(preds, labels)
+                    futures_list.append(future_metric)
+                    self.eval_meters['loss'].append(loss)
+                    t.set_description(
+                        f'Validation [{self.step}/'
+                        f'{self.epoch}/{self.opt.epochs}]'
+                    )
+                    # break # For debugging
 
         yield futures_list
         for meter in self.eval_meters.values():
