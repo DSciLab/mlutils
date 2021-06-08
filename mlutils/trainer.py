@@ -88,6 +88,13 @@ class Trainer(object):
         # Log.info('Initiated Trainer')
         # Log.info(f'ID: {opt.id}')
         # Log.debug(opt.perfect())
+        try:
+            self.setup()
+        except NotImplementedError:
+            pass
+
+    def setup(self):
+        raise NotImplementedError
 
     @gen.asynchrony
     def to_gpu(self, obj, parallel=False, gpu_id=None):
