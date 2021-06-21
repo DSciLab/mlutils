@@ -8,7 +8,7 @@ import pickle
 
 class LogitToPreds(object):
     def __init__(self, opt):
-        normalization = opt.get('normalization', 'sigmoid')
+        normalization = opt.normalization
         assert normalization in ['sigmoid', 'softmax', 'none']
         if normalization == 'sigmoid':
             self.normalization = nn.Sigmoid()
