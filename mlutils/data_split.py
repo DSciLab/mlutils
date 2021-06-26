@@ -16,12 +16,12 @@ def split_by_proportion(
             f'sum(proportions)={sum(proportions)}')
 
     outputs = []
-    data_source = random.shuffle(data_source)
+    random.shuffle(data_source)
     data_length = len(data_source)
 
     for i, proportion in enumerate(proportions):
-        if i < len(proportion) - 1:
-            n = data_length * proportion
+        if i < len(proportions) - 1:
+            n = int(data_length * proportion)
             current = data_source[:n]
             data_source = data_source[n:]
             outputs.append(current)
@@ -38,7 +38,7 @@ def split_by_kfold(
     data_source = random.shuffle(data_source)
     all_data_len = len(data_source)
 
-    def data_split() -> List[List[Any]]:
+    def data_split(data_source: List[Any]) -> List[List[Any]]:
         data_length = len(data_source)
         split_length = data_length // k
         outputs = []
@@ -61,7 +61,7 @@ def split_by_kfold(
         return outputs            
 
     folds = []
-    splited_data = data_split()
+    splited_data = data_split(data_source)
     for i in range(k):
         testing_data = splited_data[i]
         lst = list(range(k))

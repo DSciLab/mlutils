@@ -55,3 +55,5 @@ def init(opt):
         np.random.seed(opt.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+    else:
+        Log.warn('Random seed not set yet.')
