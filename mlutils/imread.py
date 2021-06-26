@@ -33,9 +33,9 @@ def imread(filename):
         image = read_gif(filename)
     elif suffix == 'tif':
         image = read_tif(filename)
-    elif suffix == 'jpg' or suffix == 'jpeg':
+    elif suffix in ['jpg', 'jpeg', 'JPG']:
         image = read_jpg(filename)
-    elif suffix == 'png':
+    elif suffix in ['png', 'PNG']:
         image = read_png(filename)
     else:
         raise NotImplementedError('Not support read {}'.format(filename))

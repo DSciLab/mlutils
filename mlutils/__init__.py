@@ -15,6 +15,7 @@ from .utils import LogitToPreds, MultiLoss,\
 from .model import EMAModel
 from .inspector import Inspector
 from .meter import KFoldMeter
+from .data_split import split_by_proportion, split_by_kfold
 
 
 
