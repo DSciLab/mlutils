@@ -227,6 +227,23 @@ class Trainer(object):
             self.eval_loader.update_transformer(
                 verbose=self.opt.get('debug', False))
 
+    def eval_state(self):
+        self.training = False
+        self.dashboard.eval()
+        for model in self.nn_models.values():
+            model.eval()
+            model.zero_grad()
+        for meter in self.eval_meters.values():
+            meter.zero()
+
+    def training_state(self):
+        self.training = True
+        self.dashboard.train()
+        for model in self.nn_models.values():
+            model.train()
+        for meter in self.train_meters.values():
+            meter.zero()
+
     def train(self, train_loader, eval_loader=None):
         self.train_loader = train_loader
         self.eval_loader = eval_loader
@@ -267,12 +284,7 @@ class Trainer(object):
 
     @gen.synchrony
     def train_epoch(self, data_loader):
-        self.training = True
-        self.dashboard.train()
-        for model in self.nn_models.values():
-            model.train()
-        for meter in self.train_meters.values():
-            meter.zero()
+        self.training_state()
 
         metric_futures = gen.FutureList()
         if isinstance(data_loader, (DataLoader, TorchDataLoader)):
@@ -334,13 +346,7 @@ class Trainer(object):
 
     @gen.synchrony
     def eval_epoch(self, data_loader):
-        self.training = False
-        self.dashboard.eval()
-        for model in self.nn_models.values():
-            model.eval()
-            model.zero_grad()
-        for meter in self.eval_meters.values():
-            meter.zero()
+        self.eval_state()
 
         futures_list = gen.FutureList()
         if isinstance(data_loader, (DataLoader, TorchDataLoader)):
@@ -500,22 +506,34 @@ class Trainer(object):
 
     def load_state_dict(self, state_dict, strict=True):
         if self._check_state_dict(state_dict, 'epoch', strict):
+            Log.info(f'Loading epoch.')
             self.epoch = state_dict['epoch']
+        else:
+            Log.info(f'Failed to load epoch.')
 
         # load model
         for key, model in self.nn_models.items():
             if self._check_state_dict(state_dict, key, strict):
+                Log.info(f'Loading model {key}')
                 model.load_state_dict(state_dict[key])
+            else:
+                Log.info(f'Failed to load model {key}')
 
         # load optimizer
         for key, optimizer in self.nn_optimizers.items():
             if self._check_state_dict(state_dict, key, strict):
+                Log.info(f'Loading optimizer {key}')
                 optimizer.load_state_dict(state_dict[key])
-        
+            else:
+                Log.info(f'Failed to load optimizer {key}')
+
         # load scheduler
         for key, scheduler in self.lr_schedulers.items():
             if self._check_state_dict(state_dict, key, strict):
+                Log.info(f'Loading scheduler {key}')
                 scheduler.load_state_dict(state_dict[key])
+            else:
+                Log.info(f'Failed to load scheduler {key}')
 
     def state_dict(self):
         state = {}

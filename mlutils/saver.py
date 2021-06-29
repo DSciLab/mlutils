@@ -1,9 +1,21 @@
 import os
 import shutil
+from typing import Any
 import torch
 from .log import Log
 from .container import DataContainer
 from .meter import KFoldMeter
+import pickle
+
+
+def load_pickle(path: str) -> Any:
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+
+def save_pickle(obj: Any, path: str) -> None:
+    with open(path, 'wb') as f:
+        pickle.dump(obj, f)
 
 
 class Saver(object):
@@ -69,6 +81,13 @@ class Saver(object):
         except FileExistsError as e:
             pass
 
+    def save_object(self, obj: Any, name: str) -> None:
+        path = os.path.join(self.saver_dir, name)
+        save_pickle(obj, path)
+
+    def load_object(self, name: str) -> Any:
+        path = os.path.join(self.saver_dir, name)
+        return load_pickle(path)
 
     def save_container(self, container, best=False):
         assert isinstance(container, DataContainer)
@@ -137,6 +156,7 @@ class Saver(object):
 
     def _load_best_state_dict(self):
         if os.path.exists(self.best_path):
+            Log.info(f'Loading state_dict from {self.best_path}')
             state = torch.load(self.best_path)
             return state
         else:
@@ -144,6 +164,7 @@ class Saver(object):
 
     def _load_latest_state_dict(self):
         if os.path.exists(self.latest_path):
+            Log.info(f'Loading state_dict from {self.latest_path}')
             state = torch.load(self.latest_path)
             return state
         else:

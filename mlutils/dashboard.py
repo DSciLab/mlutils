@@ -42,6 +42,7 @@ class Connector(object, metaclass=Singleton):
         self.env = opt.id
         self.port = opt.get('dashboard_port', get_free_port())
         self.opt = opt
+        self.testing = opt.get('testing', False)
         self.opt_html = None
         self.hostname = get_hostname()
 
@@ -94,7 +95,8 @@ class Connector(object, metaclass=Singleton):
             self.address = f'http://{self.hostname}:{self.port}/env/{self.opt.id}'
             Log.info('initiated dashboard.')
             Log.info(f'Address: {self.address}')
-            self.show_status()
+            if not self.testing:
+                self.show_status()
 
     def opt_to_html(self):
         to_show_list = ['lr', 'group', 'dataset', 'arch', 'device']
