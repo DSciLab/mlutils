@@ -151,6 +151,11 @@ class Trainer(object):
                 super().__setattr__('lr_schedulers', {})
             self.lr_schedulers[name] = value
 
+        if isinstance(value, AverageMeter):
+            if not hasattr(self, 'avg_meters'):
+                super().__setattr__('avg_meters', {})
+            self.lr_schedulers[name] = value
+
         super().__setattr__(name, value)
 
     def set_metrics(self, *metric_classes):
