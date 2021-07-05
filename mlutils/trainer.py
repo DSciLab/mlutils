@@ -273,11 +273,11 @@ class Trainer(object):
                 with torch.no_grad():
                     self.eval_epoch(self.eval_loader)
             self.save_stat_dict()
+            self._report_epoch()
             try:
                 self.on_epoch_end()
             except NotImplementedError:
                 pass
-            self._report_epoch()
         try:
             self.on_training_end()
         except NotImplementedError:
