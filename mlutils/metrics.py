@@ -50,9 +50,12 @@ class Metric(object):
 
 class Accuracy(Metric):
     def __call__(self, pred, target):
-        pred = self.de_onehot(pred)
-        if pred.ndim != target.ndim:
+        if pred.ndim > target.ndim:
+            # pred = self.de_onehot(pred)
             target = self.de_onehot(target)
+        elif pred.ndim < target.ndim:
+            pred = self.de_onehot(pred)
+            # target = self.de_onehot(target)
         assert pred.shape == target.shape
 
         pred = self.to_numpy(pred)
