@@ -197,6 +197,13 @@ class Dashobard(object):
         if self.image_chan == 3 or rgb:
             if image.ndim == 4:
                 image = image[0, :, :, :]
+        elif image.ndim == 2:
+            # image = image
+            if isinstance(image, torch.Tensor):
+                image = torch.unsqueeze(image, 0)
+            else:
+                # ndarray
+                image = np.expand_dims(image, 0)
         else:
             # image chan == 1
             if image.ndim == 4:
