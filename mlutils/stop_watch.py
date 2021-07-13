@@ -79,9 +79,9 @@ class Timer(object):
             cnt_duration = history.shape[0]
 
             fmt_str = '[Timer] '
-            fmt_str += f'max: {max_duration} ms | '
-            fmt_str += f'min: {min_duration} ms | '
-            fmt_str += f'avg: {avg_duration} ms | '
+            fmt_str += f'max: {max_duration:.3f} ms | '
+            fmt_str += f'min: {min_duration:.3f} ms | '
+            fmt_str += f'avg: {avg_duration:.3f} ms | '
             fmt_str += f'cnt: {cnt_duration} |'
             return fmt_str
 
