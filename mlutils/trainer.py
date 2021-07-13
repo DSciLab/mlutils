@@ -46,6 +46,7 @@ class Trainer(object):
     def __init__(self, opt, device_id=None):
         self.device_id = device_id
         self.opt = opt
+        self.debug = opt.get('debug', False)
         self.enable_progressbar = True
         self.saver = Saver(opt)
         self.stop_watch = StopWatch()
@@ -345,7 +346,7 @@ class Trainer(object):
     def eval_container_append(self, preds, labels):
         preds = yield preds
         labels = yield labels
-        if preds is not None and labels is not None:
+        if preds is not None and labels is not None and not self.debug:
             self.eval_container.append({'preds': preds.numpy(),
                                         'labels': labels.numpy()})
 
@@ -468,10 +469,11 @@ class Trainer(object):
     lr = current_lr
 
     def save_stat_dict(self):
-        state_dict = self.state_dict()
-        self.saver.save_state_dict(state_dict, best=self.best)
-        self.saver.save_container(self.eval_container, best=self.best)
-        self.eval_container.reset()
+        if not self.debug:
+            state_dict = self.state_dict()
+            self.saver.save_state_dict(state_dict, best=self.best)
+            self.saver.save_container(self.eval_container, best=self.best)
+            self.eval_container.reset()
 
     def train_step(self, item):
         # return loss, preds, labels, ....
