@@ -308,7 +308,7 @@ class Trainer(object):
                         f'Training '
                         f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                         f'[loss: {loss:.3f}]'
-                        f'[lr: {self.current_lr:.7f}]'
+                        f'[lr: {self.current_lr_str}]'
                     )
                     t.update()
                     # break # for debugging
@@ -332,7 +332,7 @@ class Trainer(object):
                         f'Training '
                         f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                         f'[loss: {loss:.3f}]'
-                        f'[lr: {self.current_lr:.7f}]'
+                        f'[lr: {self.current_lr_str}]'
                     )
 
         yield metric_futures
@@ -456,14 +456,44 @@ class Trainer(object):
     def inference(self, vox):
         raise NotImplementedError
 
+    def _current_lr_str(self, lr) -> str:
+        lr = self.current_lr
+        if isinstance(lr, float):
+            return f'{lr:.7f}'
+        elif isinstance(lr, list):
+            s = ''
+            for _lr in lr:
+                s += f'{_lr:.7f} | '
+            return s[:-2]
+        elif isinstance(lr, dict):
+            s = ''
+            for k, v in lr.items():
+                s += f'{k}: {self._current_lr_str(v)} | '
+            return s[:-2]
+        else:
+            raise ValueError(f'Invalid lr type ({type(lr)})')
+
+    @property
+    def current_lr_str(self) -> str:
+        lr = self.current_lr
+        return self._current_lr_str(lr)
+
     @property
     def current_lr(self):
-        max_lr = 0.0
-        for _, val in self.nn_optimizers.items():
-            lr_set = list(set([para['lr'] for para in val.param_groups]))
-            if max(lr_set) > max_lr:
-                max_lr = max(lr_set)
-        return max_lr
+        result = {}
+        for key, val in self.nn_optimizers.items():
+            lrs = [para['lr'] for para in val.param_groups]
+
+            if len(lrs) == 1:
+                lr = lrs[0]
+            else:
+                lr = lrs
+            result[key] = lr
+
+        if len(result) == 1:
+            return list(result.values())[0]
+        else:
+            return result
 
     curr_lr = current_lr
     lr = current_lr
