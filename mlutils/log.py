@@ -71,6 +71,6 @@ class Log(object):
         if cls.latest_status == STATUS_PROGRESS:
             print('')
         cls.latest_status = STATUS_NORMAL
-        fmt_str = ' '.join([header, *msg])
+        fmt_str = ' '.join([str(i) for i in [header, *msg]])
         print(fmt_str)
         cls.print_lock.release()
