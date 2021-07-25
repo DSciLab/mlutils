@@ -46,6 +46,7 @@ class Trainer(object):
     def __init__(self, opt, device_id=None):
         self.device_id = device_id
         self.opt = opt
+        self.debug = opt.get('debug', False)
         self.enable_progressbar = True
         self.saver = Saver(opt)
         self.stop_watch = StopWatch()
@@ -308,7 +309,7 @@ class Trainer(object):
                         f'Training '
                         f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                         f'[loss: {loss:.3f}]'
-                        f'[lr: {self.current_lr:.7f}]'
+                        f'[lr: {self.current_lr_str}]'
                     )
                     t.update()
                     # break # for debugging
@@ -332,7 +333,7 @@ class Trainer(object):
                         f'Training '
                         f'[{self.step}/{self.epoch}/{self.opt.epochs}] '
                         f'[loss: {loss:.3f}]'
-                        f'[lr: {self.current_lr:.7f}]'
+                        f'[lr: {self.current_lr_str}]'
                     )
 
         yield metric_futures
@@ -346,7 +347,7 @@ class Trainer(object):
     def eval_container_append(self, preds, labels):
         preds = yield preds
         labels = yield labels
-        if preds is not None and labels is not None:
+        if preds is not None and labels is not None and not self.debug:
             self.eval_container.append({'preds': preds.numpy(),
                                         'labels': labels.numpy()})
 
@@ -456,23 +457,54 @@ class Trainer(object):
     def inference(self, vox):
         raise NotImplementedError
 
+    def _current_lr_str(self, lr) -> str:
+        lr = self.current_lr
+        if isinstance(lr, float):
+            return f'{lr:.7f}'
+        elif isinstance(lr, list):
+            s = ''
+            for _lr in lr:
+                s += f'{_lr:.7f} | '
+            return s[:-2]
+        elif isinstance(lr, dict):
+            s = ''
+            for k, v in lr.items():
+                s += f'{k}: {self._current_lr_str(v)} | '
+            return s[:-2]
+        else:
+            raise ValueError(f'Invalid lr type ({type(lr)})')
+
+    @property
+    def current_lr_str(self) -> str:
+        lr = self.current_lr
+        return self._current_lr_str(lr)
+
     @property
     def current_lr(self):
-        max_lr = 0.0
-        for _, val in self.nn_optimizers.items():
-            lr_set = list(set([para['lr'] for para in val.param_groups]))
-            if max(lr_set) > max_lr:
-                max_lr = max(lr_set)
-        return max_lr
+        result = {}
+        for key, val in self.nn_optimizers.items():
+            lrs = [para['lr'] for para in val.param_groups]
+
+            if len(lrs) == 1:
+                lr = lrs[0]
+            else:
+                lr = lrs
+            result[key] = lr
+
+        if len(result) == 1:
+            return list(result.values())[0]
+        else:
+            return result
 
     curr_lr = current_lr
     lr = current_lr
 
     def save_stat_dict(self):
-        state_dict = self.state_dict()
-        self.saver.save_state_dict(state_dict, best=self.best)
-        self.saver.save_container(self.eval_container, best=self.best)
-        self.eval_container.reset()
+        if not self.debug:
+            state_dict = self.state_dict()
+            self.saver.save_state_dict(state_dict, best=self.best)
+            self.saver.save_container(self.eval_container, best=self.best)
+            self.eval_container.reset()
 
     def train_step(self, item):
         # return loss, preds, labels, ....

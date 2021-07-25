@@ -177,6 +177,14 @@ class Dashobard(object):
             self.win_dict[title] = win
 
     @regist_win
+    def add_text(self, title, text, *, training=None):
+        title = self.get_title(title, training=training)
+        return self.conn.viz.text(text,
+                                  env=self.env,
+                                  opts={'title': title},
+                                  win=self.win_dict[title])
+
+    @regist_win
     def add_image(self, title, image, *, rgb=False, training=None):
         self.image_step += 1
         if self.image_step % self.img_freq != 0:
@@ -189,6 +197,13 @@ class Dashobard(object):
         if self.image_chan == 3 or rgb:
             if image.ndim == 4:
                 image = image[0, :, :, :]
+        elif image.ndim == 2:
+            # image = image
+            if isinstance(image, torch.Tensor):
+                image = torch.unsqueeze(image, 0)
+            else:
+                # ndarray
+                image = np.expand_dims(image, 0)
         else:
             # image chan == 1
             if image.ndim == 4:

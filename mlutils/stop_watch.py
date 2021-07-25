@@ -47,3 +47,42 @@ class StopWatch(object):
         string += f'min: {history.min()} ms | '
         string += f'cnt: {len(history)} |'
         return string
+
+
+class Timer(object):
+    def __init__(self) -> None:
+        super().__init__()
+        self._history = []
+        self._tic = None
+
+    def reset(self) -> None:
+        self._history = []
+        self._tic = None
+
+    def tic(self) -> None:
+        self._tic = time.perf_counter()
+
+    def toc(self) -> None:
+        assert self._tic is not None, f'Call toc before tic'
+        curr = time.perf_counter()
+        duration = curr - self._tic
+        self._history.append(duration)
+
+    def __str__(self) -> str:
+        if len(self._history) == 0:
+            return '<Timer empty>'
+        else:
+            history = np.array(self._history) * 1000
+            max_duration = history.max()
+            min_duration = history.min()
+            avg_duration = history.mean()
+            cnt_duration = history.shape[0]
+
+            fmt_str = '[Timer] '
+            fmt_str += f'max: {max_duration:.3f} ms | '
+            fmt_str += f'min: {min_duration:.3f} ms | '
+            fmt_str += f'avg: {avg_duration:.3f} ms | '
+            fmt_str += f'cnt: {cnt_duration} |'
+            return fmt_str
+
+    __repr__ = __str__
