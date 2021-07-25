@@ -31,7 +31,8 @@ class ModuleNode(object):
 
     def __str__(self):
         root = 'root'
-        return f'{self.name or root}, number of children {len(self.children)}'
+        return (f'{self.name or root}, '
+                f'number of children {len(self.children)}')
 
 
 class ModuleForest(ModuleNode):
@@ -52,7 +53,9 @@ class ModuleForest(ModuleNode):
 
 
 def one_hot(inp, num_classes):
-    output = torch.zeros((inp.shape[0], num_classes, *inp.shape[1:])).to(inp.device)
+    output = torch.zeros(
+        (inp.shape[0], num_classes, *inp.shape[1:])
+    ).to(inp.device)
     output.scatter_(1, inp.unsqueeze(1), 1)
     return output
 
@@ -112,6 +115,7 @@ class Inspector(object):
                 return x
 
             for name, m in module.named_children():
+                # print('>>', name)
                 if not node.has_child(name):
                     # TODO fix dirty code
                     if name in ['classifier', 'fc'] and x.ndim > 2:
@@ -123,11 +127,15 @@ class Inspector(object):
             return x
 
         x = exec(self.model, self.regist_module_forest, x)
-        if y is None:
-            y = torch.argmax(x).unsqueeze(0)
 
-        y = self.one_hot(inp=y, num_classes=x.size(1))
-        loss = torch.sum(x * y)
+        num_classes = x.size(1)
+        if num_classes == 1:
+            loss = x[x>0].sum() + x[x<=0].sum() * -1
+        else:
+            if y is None:
+                y = torch.argmax(x).unsqueeze(0)
+            y = self.one_hot(inp=y, num_classes=num_classes)
+            loss = torch.sum(x * y)
         loss.backward(retain_graph=True)
 
         for feat, grad in zip(self.features, self.gradients):
@@ -136,23 +144,25 @@ class Inspector(object):
             grad = grad[0]
             self.image = self.image[0].detach()
 
-            cam = torch.zeros(feat.shape[-2:])
+            cam = torch.zeros(feat.shape[-2:], device=x.device)
             weights = torch.mean(grad, dim=(1, 2))
             for i, w in enumerate(weights):
+                # print('feat', feat[i].device)
+                # print('w', w.device)
                 cam += feat[i] * w
             self.cams.append(cam)
 
         if self.training:
             self.model.train()
 
-    def show_cam_on_images(self, image):
+    def show_cam_on_images(self, image=None, strength=1.0):
         assert len(self.cams) > 0, 'NO cam to show.'
         outputs = []
         if image is None:
             image = self.image
 
         if isinstance(image, torch.Tensor):
-            image = image.numpy()
+            image = image.cpu().numpy()
 
         for cam in self.cams:
             if isinstance(cam, torch.Tensor):
@@ -163,11 +173,11 @@ class Inspector(object):
             cam = cv2.resize(cam, image.shape[-2:])
             cam = cam - cam.min()
             cam = cam / cam.max()
-            heatmap = cv2.applyColorMap(np.uint8(255 * cam),
-                                        cv2.COLORMAP_JET)
+            heatmap = cv2.applyColorMap(
+                np.uint8(255 * cam), cv2.COLORMAP_JET)
             heatmap = np.float32(heatmap) / 255.
             # image = (image - image.min()) / (image.max() - image.min())
-            cam_image = heatmap.transpose((2, 0, 1))[::-1, :, :] \
+            cam_image = strength * heatmap.transpose((2, 0, 1))[::-1, :, :] \
                         + np.float32(image)
             cam_image = cam_image / cam_image.max()
             outputs.append(cam_image)
@@ -176,6 +186,3 @@ class Inspector(object):
         self.features = []
         self.gradients = []
         return outputs
-
-    def show_cam_on_voxs(self, vox):
-        pass

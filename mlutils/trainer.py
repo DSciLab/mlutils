@@ -270,8 +270,9 @@ class Trainer(object):
 
             self.train_epoch(self.train_loader)
             if self.eval_loader is not None:
-                with torch.no_grad():
-                    self.eval_epoch(self.eval_loader)
+                # with torch.no_grad():
+                #     self.eval_epoch(self.eval_loader)
+                self.eval_epoch(self.eval_loader)
             self.save_stat_dict()
             self._report_epoch()
             try:
