@@ -130,6 +130,7 @@ class Inspector(object):
 
         num_classes = x.size(1)
         if num_classes == 1:
+            # loss = x[x>0].sum() + x[x<=0].sum()
             loss = x[x>0].sum() + x[x<=0].sum() * -1
         else:
             if y is None:
