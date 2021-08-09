@@ -1,5 +1,6 @@
 import threading as T
 import datetime
+from typing import List, Union
 import torch
 import numpy as np
 import inspect
@@ -207,6 +208,8 @@ class Trainer(object):
             pass
 
         Log.info(f'ID: {self.opt.id}')
+        Log.info(f'LR: {self.current_lr_str}')
+        Log.info(f'Epoch: {self.epoch}/{self.epochs}')
         Log.info(f'Now: {datetime.datetime.now().ctime()}')
         Log.info(f'Duration: {self.stop_watch.perfect_lap()}')
         # if self.dashboard.enabled:
@@ -253,6 +256,10 @@ class Trainer(object):
     def train(self, train_loader, eval_loader=None):
         self.train_loader = train_loader
         self.eval_loader = eval_loader
+        if train_loader is not None:
+            Log.info(f'Training dataloader length: {len(train_loader)}')
+        if eval_loader is not None:
+            Log.info(f'Eval dataloader length: {len(eval_loader)}')
 
         try:
             self.on_training_begin()
@@ -261,8 +268,8 @@ class Trainer(object):
 
         initial_epoch = self.epoch
         self.stop_watch.start()
-        for _ in range(initial_epoch, self.opt.epochs):
-            self.epoch += 1
+        for epoch in range(initial_epoch, self.opt.epochs):
+            self.epoch = epoch
             try:
                 self.on_epoch_begin()
             except NotImplementedError:
@@ -271,9 +278,9 @@ class Trainer(object):
 
             self.train_epoch(self.train_loader)
             if self.eval_loader is not None:
-                # with torch.no_grad():
-                #     self.eval_epoch(self.eval_loader)
-                self.eval_epoch(self.eval_loader)
+                with torch.no_grad():
+                    self.eval_epoch(self.eval_loader)
+                # self.eval_epoch(self.eval_loader)
             self.save_stat_dict()
             self._report_epoch()
             try:
@@ -312,7 +319,6 @@ class Trainer(object):
                         f'[lr: {self.current_lr_str}]'
                     )
                     t.update()
-                    # break # for debugging
         else:
             if hasattr(self, 'num_batch_per_epoch_train'):
                 num_batch_per_epoch = self.num_batch_per_epoch_train
@@ -480,7 +486,7 @@ class Trainer(object):
         return self._current_lr_str(lr)
 
     @property
-    def current_lr(self):
+    def current_lr(self) -> Union[float, List[float]]:
         result = {}
         for key, val in self.nn_optimizers.items():
             lrs = [para['lr'] for para in val.param_groups]
