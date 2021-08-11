@@ -69,7 +69,7 @@ class Inspector(object):
         >>> inspector.regist_loss_fn(loss_fn)
         >>> # run
         >>> inspector.inspect(images, labels)
-        >>> cam = inspected_model.show_cam_on_image()
+        >>> cams = inspector.show_cam_on_images()
     '''
     def __init__(self, opt, model) -> None:
         super().__init__()
@@ -93,7 +93,7 @@ class Inspector(object):
     def save_gradient(self, grad):
         self.gradients.append(grad)
 
-    def inspect(self, x, y=None):
+    def inspect(self, x):
         assert not self.regist_module_forest.empty, \
             'No layer has been registed yet.'
         assert self.one_hot is not None, \
@@ -108,6 +108,9 @@ class Inspector(object):
         self.gradients = []
 
         def exec(module, node, x):
+            """
+                x: single image
+            """
             if node.isleaf:
                 x = module(x)
                 x.register_hook(self.save_gradient)
@@ -130,11 +133,9 @@ class Inspector(object):
 
         num_classes = x.size(1)
         if num_classes == 1:
-            # loss = x[x>0].sum() + x[x<=0].sum()
             loss = x[x>0].sum() + x[x<=0].sum() * -1
         else:
-            if y is None:
-                y = torch.argmax(x).unsqueeze(0)
+            y = torch.argmax(x, dim=1)
             y = self.one_hot(inp=y, num_classes=num_classes)
             loss = torch.sum(x * y)
         loss.backward(retain_graph=True)
@@ -156,11 +157,44 @@ class Inspector(object):
         if self.training:
             self.model.train()
 
-    def show_cam_on_images(self, image=None, strength=1.0):
+    def show_cam_on_slices(self, strength=1.0):
+        """
+            for 3D vox
+        """
         assert len(self.cams) > 0, 'NO cam to show.'
         outputs = []
-        if image is None:
-            image = self.image
+        vox = self.image
+
+        if isinstance(vox, torch.Tensor):
+            vox = vox.cpu().numpy()
+
+        for cam in self.cams:
+            if isinstance(cam, torch.Tensor):
+                cam = cam.detach().cpu().numpy()
+
+            # adjust cam to 0~1
+            cam = np.maximum(cam, 0)
+            cam = cv2.resize(cam, image.shape[-2:])
+            cam = cam - cam.min()
+            cam = cam / cam.max()
+            heatmap = cv2.applyColorMap(
+                np.uint8(255 * cam), cv2.COLORMAP_JET)
+            heatmap = np.float32(heatmap) / 255.
+            # image = (image - image.min()) / (image.max() - image.min())
+            cam_image = strength * heatmap.transpose((2, 0, 1))[::-1, :, :] \
+                        + np.float32(image)
+            cam_image = cam_image / cam_image.max()
+            outputs.append(cam_image)
+
+        self.cams = []
+        self.features = []
+        self.gradients = []
+        return outputs
+
+    def show_cam_on_images(self, strength=1.0):
+        assert len(self.cams) > 0, 'NO cam to show.'
+        outputs = []
+        image = self.image
 
         if isinstance(image, torch.Tensor):
             image = image.cpu().numpy()
