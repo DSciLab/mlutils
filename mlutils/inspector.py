@@ -157,40 +157,6 @@ class Inspector(object):
         if self.training:
             self.model.train()
 
-    def show_cam_on_slices(self, strength=1.0):
-        """
-            for 3D vox
-        """
-        assert len(self.cams) > 0, 'NO cam to show.'
-        outputs = []
-        vox = self.image
-
-        if isinstance(vox, torch.Tensor):
-            vox = vox.cpu().numpy()
-
-        for cam in self.cams:
-            if isinstance(cam, torch.Tensor):
-                cam = cam.detach().cpu().numpy()
-
-            # adjust cam to 0~1
-            cam = np.maximum(cam, 0)
-            cam = cv2.resize(cam, image.shape[-2:])
-            cam = cam - cam.min()
-            cam = cam / cam.max()
-            heatmap = cv2.applyColorMap(
-                np.uint8(255 * cam), cv2.COLORMAP_JET)
-            heatmap = np.float32(heatmap) / 255.
-            # image = (image - image.min()) / (image.max() - image.min())
-            cam_image = strength * heatmap.transpose((2, 0, 1))[::-1, :, :] \
-                        + np.float32(image)
-            cam_image = cam_image / cam_image.max()
-            outputs.append(cam_image)
-
-        self.cams = []
-        self.features = []
-        self.gradients = []
-        return outputs
-
     def show_cam_on_images(self, strength=1.0):
         assert len(self.cams) > 0, 'NO cam to show.'
         outputs = []
