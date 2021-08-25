@@ -418,10 +418,9 @@ class Trainer(object):
     def test(self, test_dataloader):
         self.training = False
         self.testing = True
+        self.eval_state()
         test_container = DataContainer('testResult')
         test_stop_watch = StopWatch()
-        for model in self.nn_models.values():
-            model.eval()
 
         data_len = len(test_dataloader)
         cnt = 0
@@ -437,7 +436,7 @@ class Trainer(object):
                     f'The type of case_id should be str, but {type(case_id)} got.'
                 with torch.no_grad():
                     test_stop_watch.start()
-                    rets = self.inference(*item)
+                    rets = self.inference(item)
                     test_stop_watch.lap()
                     preds, labels = rets
                     data = item[0]
@@ -533,6 +532,12 @@ class Trainer(object):
         raise NotImplementedError
 
     def on_training_end(self):
+        raise NotImplementedError
+
+    def on_testing_begin(self):
+        raise NotImplementedError
+
+    def on_testing_end(self):
         raise NotImplementedError
 
     def _check_state_dict(self, state_dict, key, strict):

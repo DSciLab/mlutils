@@ -2,6 +2,7 @@ import os
 import shutil
 from typing import Any
 import torch
+from .singleton import Singleton
 from .log import Log
 from .container import DataContainer
 from .meter import KFoldMeter
@@ -18,7 +19,7 @@ def save_pickle(obj: Any, path: str) -> None:
         pickle.dump(obj, f)
 
 
-class Saver(object):
+class Saver(object, metaclass=Singleton):
     DEFAULT_ROOT = '.saver'
     METER_LOG = 'meters_{0}.log'
     LATEST_STATE = 'latest_{0}.pth'
@@ -32,8 +33,12 @@ class Saver(object):
         self.saver_dir = os.path.join(self.DEFAULT_ROOT, opt.id)
         self.cfg_path = os.path.join(self.saver_dir, self.CFG_FILE)
         self.curr_fold = 0
-        if self.test is False:
+        self.saver_dir_is_created = False
+        # it's works, since the metaclass=Singleton
+        if self.test is False and self.saver_dir_is_created is False:
+            Log.info('Create saver dir')
             self.create_saver_dir(opt, self.saver_dir, self.DEFAULT_ROOT)
+            self.saver_dir_is_created = True
         # Log.info('initiated saver.')
 
     @property
@@ -186,6 +191,7 @@ class Saver(object):
             return
 
         opt.dump(self.cfg_path)
+        opt.dump_pkl(self.cfg_path)
 
     def load_cfg(self, opt):
-        opt.load(self.cfg_path)
+        opt.load_pkl(self.cfg_path)
