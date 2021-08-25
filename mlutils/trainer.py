@@ -70,6 +70,7 @@ class Trainer(object):
         self.latest_loss = np.Inf
         self.min_loss = np.Inf
         self.curr_fold = 0
+        self.eval_no_grad = True
         self.eval_container = DataContainer('eval_data')
     
         train_loss_meter = AverageMeter('train_loss')
@@ -278,9 +279,11 @@ class Trainer(object):
 
             self.train_epoch(self.train_loader)
             if self.eval_loader is not None:
-                with torch.no_grad():
+                if self.eval_no_grad:
+                    with torch.no_grad():
+                        self.eval_epoch(self.eval_loader)
+                else:
                     self.eval_epoch(self.eval_loader)
-                # self.eval_epoch(self.eval_loader)
             self.save_stat_dict()
             self._report_epoch()
             try:
