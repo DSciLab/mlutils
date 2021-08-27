@@ -5,7 +5,7 @@ from sklearn import metrics
 from .thirdparty import sklearn_metrics
 
 
-__all__ = ['Accuracy', 'F1Score', 'AUROC', 'ECE', 'Kappa']
+__all__ = ['Accuracy', 'F1Score', 'AUROC', 'ECE', 'Kappa', 'Dice', 'Dice2d']
 
 
 def threhold(inp, th=0.5):
@@ -109,6 +109,64 @@ class Kappa(Metric):
 class ECE(Metric):
     def __init__(self):
         super().__init__()
+
+
+class Dice2d(Metric):
+    def __init__(self, opt):
+        super().__init__(opt)
+        normalization = opt.get('normalization', 'sigmoid')
+        assert normalization in ['sigmoid', 'softmax', 'none']
+
+        self.num_classes = opt.num_classes
+        self.ignore_index = opt.get('ignore_index', None)
+
+    # def dice_2d(self, input, target):
+    #     return compute_per_channel_dice(input, target)
+
+    # def dice_3d(self, input, target):
+    #     return compute_per_channel_dice(input, target)
+
+    def dice(self, test=None, reference=None, confusion_matrix=None,
+             nan_for_nonexisting=True, **kwargs):
+        """2TP / (2TP + FP + FN)"""
+
+        if confusion_matrix is None:
+            confusion_matrix = ConfusionMatrix(test, reference,
+                                ignore_index=self.ignore_index)
+
+        tp, fp, tn, fn = confusion_matrix.get_matrix()
+        test_empty, test_full, reference_empty, reference_full \
+            = confusion_matrix.get_existence()
+
+        if test_empty and reference_empty:
+            if nan_for_nonexisting:
+                return float("NaN")
+            else:
+                return 0.
+
+        return float(2. * tp / (2. * tp + fp + fn))
+
+    def __call__(self, logit, target):
+        # logit: (B, C, X, Y)
+        # target: (B, X, Y)
+        # print('logit.shape', logit.shape)
+        # print('target.shape', target.shape)
+        if not logit.ndim == target.ndim + 1:
+            target = target.squeeze(1)
+        logit = self.to_numpy(logit)
+        target = self.to_numpy(target)
+        pred = self.de_onehot(logit)   # to predict
+        assert pred.ndim == target.ndim
+        # logit: (B, X, Y)
+        # target: (B, X, Y)
+        pred = expand_as_one_hot(pred, self.num_classes)
+        target = expand_as_one_hot(
+            target.astype(np.int), self.num_classes
+        )
+        # logit: (B, C, X, Y)
+        # target: (B, C, X, Y)
+
+        return self.dice(pred, target)
 
 
 class Dice(Metric):
