@@ -48,3 +48,9 @@ class DataLoader(TorchDataLoader[T_co]):
             self.dataset.update_transformer(*args, **kwargs)
         except NotImplementedError:
             Log.warn('Try to call a not implemented method \'update_transformer\'')
+
+    def update_loss(self, *args, **kwds):
+        try:
+            self.batch_sampler.update_loss(*args, **kwds)
+        except NotImplementedError:
+            Log.warn('Try to call a not implemented method \'update_loss\'')

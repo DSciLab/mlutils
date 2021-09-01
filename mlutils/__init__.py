@@ -1,5 +1,4 @@
 import os
-import random
 import datetime
 
 from .trainer import Trainer, detach_cpu
@@ -20,9 +19,20 @@ from .cached_loader import CachedLoader
 
 
 def init(opt):
+    import random
     import torch
     import torch.cuda
     import numpy as np
+
+    if hasattr(opt, 'seed'):
+        np.random.seed(opt.seed)
+        random.seed(opt.seed)
+        torch.manual_seed(opt.seed)
+        torch.cuda.manual_seed(opt.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = True
+    else:
+        Log.warn('Random seed not set yet.')
 
     if hasattr(opt, 'device'):
         if not isinstance(opt.device, list):
@@ -47,13 +57,3 @@ def init(opt):
     if opt.get('testing', False) is True:
         saver = Saver(opt)
         saver.load_cfg(opt)
-
-    if hasattr(opt, 'seed'):
-        random.seed(opt.seed)
-        torch.manual_seed(opt.seed)
-        torch.cuda.manual_seed(opt.seed)
-        np.random.seed(opt.seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-    else:
-        Log.warn('Random seed not set yet.')
