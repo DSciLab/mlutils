@@ -419,6 +419,10 @@ class Trainer(object):
             self.best = False
 
     def test(self, test_dataloader):
+        try:
+            self.on_testing_begin()
+        except NotImplementedError:
+            pass
         self.training = False
         self.testing = True
         self.eval_state()
@@ -461,6 +465,10 @@ class Trainer(object):
         Log.info(test_stop_watch.show_statistic())
         self.saver.save_container(test_container)
         self.testing = False
+        try:
+            self.on_testing_end()
+        except NotImplementedError:
+            pass
 
     def inference(self, vox):
         raise NotImplementedError
@@ -523,6 +531,12 @@ class Trainer(object):
         raise NotImplementedError
 
     def inference(self, image):
+        raise NotImplementedError
+
+    def on_testing_end(self):
+        raise NotImplementedError
+
+    def on_testing_end(self):
         raise NotImplementedError
 
     def on_epoch_begin(self):
