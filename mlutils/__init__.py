@@ -31,6 +31,7 @@ def init(opt):
         torch.cuda.manual_seed(opt.seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.enabled = False
     else:
         Log.warn('Random seed not set yet.')
 
