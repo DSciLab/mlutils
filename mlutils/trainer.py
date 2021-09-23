@@ -269,7 +269,7 @@ class Trainer(object):
 
         initial_epoch = self.epoch
         self.stop_watch.start()
-        for epoch in range(initial_epoch, self.opt.epochs):
+        for epoch in range(initial_epoch, self.epochs):
             self.epoch = epoch
             try:
                 self.on_epoch_begin()
