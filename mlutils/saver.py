@@ -87,12 +87,19 @@ class Saver(object, metaclass=Singleton):
             pass
 
     def save_object(self, obj: Any, name: str) -> None:
+        if (not name[-4:] == '.pkl') and (not name[-7:] == '.pickle'):
+            name = f'{name}.pkl'
         path = os.path.join(self.saver_dir, name)
         save_pickle(obj, path)
 
     def load_object(self, name: str) -> Any:
+        if (not name[-4:] == '.pkl') and (not name[-7:] == '.pickle'):
+            name = f'{name}.pkl'
         path = os.path.join(self.saver_dir, name)
         return load_pickle(path)
+
+    save_pickle = save_object
+    load_pickle = load_object
 
     def save_container(self, container, best=False):
         assert isinstance(container, DataContainer)
