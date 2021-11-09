@@ -64,7 +64,7 @@ class Trainer(object):
         self.lr_schedulers = {}
         self.training = True
         self.testing = False
-        self.best = False
+        self._best = False
         self.train_loader = None
         self.eval_loader = None
         self.latest_loss = np.Inf
@@ -413,10 +413,14 @@ class Trainer(object):
         loss_meter = self.eval_meters['loss']
         self.latest_loss = loss_meter.avg
         if self.latest_loss < self.min_loss:
-            self.best = True
+            self._best = True
             self.min_loss = self.latest_loss
         else:
-            self.best = False
+            self._best = False
+
+    @property
+    def best(self) -> bool:
+        return self._best
 
     def test(self, test_dataloader):
         try:
