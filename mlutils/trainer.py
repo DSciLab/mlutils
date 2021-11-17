@@ -478,7 +478,7 @@ class Trainer(object):
         raise NotImplementedError
 
     def _current_lr_str(self, lr) -> str:
-        lr = self.current_lr
+        # lr = self.current_lr
         if isinstance(lr, float):
             return f'{lr:.7f}'
         elif isinstance(lr, list):
@@ -505,7 +505,7 @@ class Trainer(object):
         for key, val in self.nn_optimizers.items():
             lrs = [para['lr'] for para in val.param_groups]
 
-            if len(lrs) == 1:
+            if len(lrs) > 1:
                 lr = lrs[0]
             else:
                 lr = lrs
