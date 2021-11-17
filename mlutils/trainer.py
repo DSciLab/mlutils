@@ -157,7 +157,7 @@ class Trainer(object):
         if isinstance(value, AverageMeter):
             if not hasattr(self, 'avg_meters'):
                 super().__setattr__('avg_meters', {})
-            self.lr_schedulers[name] = value
+            self.avg_meters[name] = value
 
         super().__setattr__(name, value)
 
